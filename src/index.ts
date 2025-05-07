@@ -19,10 +19,20 @@ import {
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
   import Stats from "stats.js";
   
+  const COLLINEAR_THRESHHOLD = 0.99;
+
   function boundingBox(object: Object3D) {
     const box = new Box3(new Vector3(), new Vector3());
     box.setFromObject(object);
     return box;
+  }
+
+  function vec(x: number, y: number, z: number): Vector3 {
+    return new Vector3(x, y, z);
+  }
+
+  function norm(x: number, y: number, z: number): Vector3 {
+    return new Vector3(x, y, z).normalize();
   }
   
   abstract class Particle {
@@ -56,7 +66,7 @@ import {
       }
     }
   
-    abstract atoms(): Object3D[];
+    abstract isAtom(): boolean;
   }
   
   class Molecule extends Particle {
@@ -69,9 +79,9 @@ import {
       this.object = new Group();
       this.object.name = name;
     }
-  
-    atoms(): Object3D[] {
-      return this.object.children;
+
+    isAtom(): boolean {
+      return false;
     }
   }
   
@@ -110,8 +120,30 @@ import {
       this.object.position.copy(this.startPos);
     }
   
-    atoms(): Object3D[] {
-      return [this.object];
+    isAtom(): boolean {
+      return true;
+    }
+
+    worldNormal(side: number): Vector3 {
+      if (side < 0 || side > 5) {
+        throw new Error("side must be between 0 and 5");
+      }
+
+      switch (side) {
+        case 0:
+          return this.object.localToWorld(vec(1, 0, 0));
+        case 1:
+          return this.object.localToWorld(vec(-1, 0, 0));
+        case 2:
+          return this.object.localToWorld(vec(0, 1, 0)); 
+        case 3:
+          return this.object.localToWorld(vec(0, -1, 0));
+        case 3:
+          return this.object.localToWorld(vec(0, 0, 1));
+        default:
+          return this.object.localToWorld(vec(0, 0, -1));
+      }
+
     }
   
     private addNormalLine(n1: Vector3, color: number) {
@@ -126,101 +158,80 @@ import {
    * Manages all the particles in the scene
    */
   class ParticleGroup {
+    private COLINEAR_THRESHHOLD = 0.99;
+
+    private id = 0;
     private particles = new Map<string, Particle>();
   
     // create the bounding box that we will eventually bounce off of
     private glassBox = new GlassBox(-100, 100, -100, 100, -100, 100);
   
     constructor(private scene: Scene) {
-      this.particles.set(
-        "cube_00",
-        new SoloAtom(
-          "cube_00",
-          new Vector3(20, 5, 10),
-          new Vector3(1, 1, 0).normalize()
-        )
-      );
-  
-      this.particles.set(
-        "cube_01",
-        new SoloAtom(
-          "cube_01",
-          new Vector3(0, 0, 0),
-          new Vector3(1, 0, 1).normalize()
-        )
-      );
-  
-      this.particles.set(
-        "cube_02",
-        new SoloAtom(
-          "cube_02",
-          new Vector3(40, 40, 40),
-          new Vector3(0, 1, 1).normalize()
-        )
-      );
-  
-      this.particles.set(
-        "cube_03",
-        new SoloAtom(
-          "cube_03",
-          new Vector3(60, 60, 60),
-          new Vector3(1, 1, 0).normalize()
-        )
-      );
+      this.makeAtom(vec(20, 5, 10), norm(1, 1, 0));
+      this.makeAtom(vec(0, 0, 0), norm(1, 0, 1));
+      this.makeAtom(vec(40, 40, 40), norm(0, 1, 1));
+      this.makeAtom(vec(60, 60, 60), norm(1, 1, 0));
   
       for (const c of this.allParticles()) {
         this.scene.add(c.object);
       }
     }
+
+    private makeAtom(startPos: Vector3, trajectoryUnit: Vector3) {
+        const name = `atom_%{this.id}`;
+        this.particles.set(name, new SoloAtom(name, startPos, trajectoryUnit));
+        this.id++;
+    }
   
     update() {
-      for (const c of this.allParticles()) {
-        c.update(this.glassBox);
+      for (const p of this.allParticles()) {
+        p.update(this.glassBox);
       }
     }
   
     condense() {
-      const atoms: Object3D[] = [];
-      for (const ps of this.allParticles()) {
-        atoms.push(...ps.atoms());
-      }
-  
-      const bondedPairs = [];
-      for (let i = 0; i < atoms.length; i++) {
-        for (let j = i + 1; j < atoms.length; j++) {
-          if (this.bondable(atoms[i], atoms[j])) {
-            bondedPairs.push([atoms[i], atoms[j]]);
+      const particles = this.allParticles();
+      for(let i = 0; i < particles.length; i++) {
+        for (let j = i+1; j < particles.length; j++) {
+          if (this.isBondable(particles[i], particles[j])) {
+            this.bondParticles(particles[i], particles[j]);
           }
         }
       }
-  
-      // consider each bonded pair
-      for (const bp of bondedPairs) {
-        const [atom1, atom2] = bp;
-        const atom1Mol = this.molecule(atom1);
-        const atom2Mol = this.molecule(atom2);
-        if (atom1Mol && !atom2Mol) {
-          this.addAtomToMolecule(atom2, atom1Mol);
-        } else if (!atom1Mol && atom2Mol) {
-          this.addAtomToMolecule(atom1, atom2Mol);
-        } else if (!atom1Mol && !atom2Mol) {
-          this.makeNewMolecule(atom1, atom2);
-        } else if (atom1Mol && atom2Mol) {
-          this.mergeMolecules(atom1Mol, atom2Mol);
-        }
+    }
+
+    private bondParticles(p1: Particle, p2: Particle) {
+      if (!p1.isAtom() && p2.isAtom()) {
+        this.addAtomToMolecule(p2, p1);
+      } else if (p1.isAtom() && !p2.isAtom()) {
+        this.addAtomToMolecule(p1, p2);
+      } else if (p1.isAtom() && p2.isAtom()) {
+        this.makeNewMolecule(p1, p2);
+      } else {
+        this.mergeMolecules(p1, p2);
       }
     }
   
-    /**
-     * absorb atom1 into molecule
-     * atom is removed from scene and added to molecule's Group
-     */
-    private addAtomToMolecule(atom: Object3D, molecule: Group) {
-      this.scene.remove(atom);
-      molecule.attach(atom);
-  
-      // Keep molecule's trajectory
-      // TODO adjust particle map
+    private isBondable(particle1: Particle, particle2: Particle): boolean {
+      if (particle1.isAtom() && particle2.isAtom()) {
+        return this.isBondableAtoms(particle1 as SoloAtom, particle2 as SoloAtom);
+      } else {
+        return false;
+      }
+    }
+
+    private isBondableAtoms(atom1: SoloAtom, atom2: SoloAtom): boolean {
+      if (!boundingBox(atom1.object).intersectsBox(boundingBox(atom2.object))) {
+        return false;
+      } else {
+        for (let side = 0; side < 6; side++) {
+          const d = atom1.worldNormal(side).dot(atom2.worldNormal(side));
+          if (d < 0 && (d * -1) >= COLLINEAR_THRESHHOLD) {
+            return true;
+          }
+        }
+        return false;
+      }
     }
   
     /**
@@ -228,14 +239,26 @@ import {
      * atom1 and atom2 are removed from scene and a new Group is created with
      * atom1 and atom2 as children, which is then added to scene
      */
-    private makeNewMolecule(atom1: Object3D, atom2: Object3D) {
-      this.scene.remove(atom1, atom2);
-      const group = new Group();
-      group.attach(atom1);
-      group.attach(atom2);
-      this.scene.add(group);
+    private makeNewMolecule(atom1: Particle, atom2: Particle) {
+      //this.scene.remove(atom1, atom2);
+      //const group = new Group();
+      //group.attach(atom1);
+      //group.attach(atom2);
+      //this.scene.add(group);
   
       // TODO make new trajectory
+      // TODO adjust particle map
+    }
+    
+    /**
+     * absorb atom1 into molecule
+     * atom is removed from scene and added to molecule's Group
+     */
+    private addAtomToMolecule(atom: Particle, molecule: Particle) {
+      //this.scene.remove(atom);
+      //molecule.attach(atom);
+  
+      // Keep molecule's trajectory
       // TODO adjust particle map
     }
   
@@ -243,20 +266,12 @@ import {
      * Combine two molecules together
      * Molecule2's Group is remove from scene, and it's children are added to molecule1
      */
-    private mergeMolecules(molecule1: Group, molecule2: Group) {
-      this.scene.remove(molecule2);
-      molecule2.children.forEach((c) => molecule1.attach(c));
+    private mergeMolecules(molecule1: Particle, molecule2: Particle) {
+      //this.scene.remove(molecule2);
+      //molecule2.children.forEach((c) => molecule1.attach(c));
   
       // TODO adjust particle map
       // keep trajectory of surviving particle
-    }
-  
-    private bondable(atom1: Object3D, atom2: Object3D): boolean {
-      return false;
-    }
-  
-    private molecule(atom: Object3D): Group | null {
-      return atom.parent !== this.scene ? (atom.parent as Group) : null;
     }
   
     private allParticles(): Particle[] {
