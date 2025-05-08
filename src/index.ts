@@ -32,6 +32,7 @@ function name(prefix: string): string {
 }
 
 const COLLINEAR_THRESHHOLD = 0.99;
+const ZERO_THRESHOLD = 0.001;
 
 function boundingBox(object: Object3D) {
   const box = new Box3(new Vector3(), new Vector3());
@@ -64,6 +65,16 @@ function cross(v1: Vector3, v2: Vector3) {
   return v3;
 }
 
+function randomVector(): Vector3 {
+  const v = new Vector3();
+  v.set(Math.random(), Math.random(), Math.random());
+  return v;
+}
+
+function zero(v: Vector3): boolean {
+  return Math.abs(v.x - 0) <= ZERO_THRESHOLD && Math.abs(v.y - 0) <= ZERO_THRESHOLD && Math.abs(v.z - 0) <= ZERO_THRESHOLD;
+}
+
 interface Particle {
   isAtom: boolean;
   trajectoryUnit: Vector3;
@@ -78,17 +89,7 @@ function initObject3D(object: Object3D, name: string, startPos: Vector3, startRo
   return object;
 }
 
-function makeAtom(startPos: Vector3, startRot: Euler | null,
-                  rotationInc: Euler | null, trajectoryUnit: Vector3): Particle {
-  const object = initObject3D(new Group(), name('atom_'), startPos, startRot);
-
-  function addNormalLine(n1: Vector3, color: number) {
-    const n0 = new Vector3(0, 0, 0);
-    const geo = new BufferGeometry().setFromPoints([n0, n1]);
-    const n = new Line(geo, new LineBasicMaterial({ color }));
-    object.add(n);
-  }
-
+function addCubeToGroup(object: Object3D) {
   const geometry = new BoxBufferGeometry(1, 1, 1);
   geometry.computeBoundingBox();
   const materials = [
@@ -102,6 +103,22 @@ function makeAtom(startPos: Vector3, startRot: Euler | null,
   const cubeMesh = new Mesh(geometry, materials);
   cubeMesh.name = "mesh";
   object.add(cubeMesh);
+  // stretch in all directions, so this will make the cubes 10 length
+  object.scale.set(5, 5, 5);
+}
+
+function makeAtom(startPos: Vector3, startRot: Euler | null,
+                  rotationInc: Euler | null, trajectoryUnit: Vector3): Particle {
+  const object = initObject3D(new Group(), name('atom_'), startPos, startRot);
+
+  function addNormalLine(n1: Vector3, color: number) {
+    const n0 = new Vector3(0, 0, 0);
+    const geo = new BufferGeometry().setFromPoints([n0, n1]);
+    const n = new Line(geo, new LineBasicMaterial({ color }));
+    object.add(n);
+  }
+
+  addCubeToGroup(object);
 /*
   addNormalLine(vec(1.5, 0, 0), 0xff0000);
   addNormalLine(vec(-1.5, 0, 0), 0xffa500);
@@ -110,8 +127,6 @@ function makeAtom(startPos: Vector3, startRot: Euler | null,
   addNormalLine(vec(0, 0, 1.5), 0x0000ff);
   addNormalLine(vec(0, 0, -1.5), 0x800080);
 */
-  // stretch in all directions, so this will make the cubes 10 length
-  object.scale.set(5, 5, 5);
   return { isAtom: true, object, trajectoryUnit, rotationInc }
 }
 
@@ -154,8 +169,8 @@ function worldNormal(object: Object3D, side: number): Vector3 {
       n = vec(0, 0, -1);
       break;
   }
-  const worldMatrix = object.matrixWorld;
-  const wn = n.applyMatrix4(worldMatrix);
+
+  const wn = n.applyMatrix4(object.matrixWorld);
   return wn.sub(object.position).normalize();
 }
 
@@ -189,30 +204,52 @@ function updateParticle(p: Particle, glassBox: GlassBox) {
 
 function isBondable(particle1: Particle, particle2: Particle): boolean {
   if (particle1.isAtom && particle2.isAtom) {
-    return isBondableAtoms(particle1, particle2);
+    return isBondableAtoms(particle1.trajectoryUnit, particle1.object, particle2.object);
+  } else if (particle1.isAtom && !particle2.isAtom) {
+    return isMoleculeBondableToAtom(particle1.trajectoryUnit, particle1.object, particle2.object);
+  } else if (!particle1.isAtom && particle2.isAtom) {
+    return isMoleculeBondableToAtom(particle2.trajectoryUnit, particle2.object, particle1.object);
   } else {
     return false;
   }
 }
 
-function isBondableAtoms(atom1: Particle, atom2: Particle): boolean {
-  if (!boundingBox(atom1.object).intersectsBox(boundingBox(atom2.object))) {
-    return false;
-  }
+function isBondableAtoms(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
+  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) &&
+         sameColourTouching(trajectory, atom1, atom2);
+}
 
-  console.log("atom collision");
-  // atoms are touching
+function sameColourTouching(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
   for (let side = 0; side < 6; side++) {
-    const wn1 = worldNormal(atom1.object, side);
-    const wn2 = worldNormal(atom2.object, side);
-    const d = wn1.dot(wn2);
-    console.log("side: " + side +", wn1: " + wn1.toArray() + ", wn2: " + wn2.toArray() + ", d: "+d)
-    if (d < 0 && (d * -1) >= COLLINEAR_THRESHHOLD) {
-      // same coloured normals are pointed in opposite directions
-      // this is a bond condition if the atoms are touching
+    const wn1 = worldNormal(atom1, side);
+    const wn2 = worldNormal(atom2, side);
+    const d1 = wn1.dot(wn2);
+    const d2 = wn1.dot(trajectory);
+    if (d1 < 0 && (d1 * -1) >= COLLINEAR_THRESHHOLD && d2 >= COLLINEAR_THRESHHOLD) {
+      // same coloured normals are pointed in opposite directions AND
+      // the normal is in the direction of the trajectory
+      // this is a bonding condition if the atoms are touching
       return true;
     }
   }
+  return false;
+}
+
+function isMoleculeBondableToAtom(trajectory: Vector3, atom: Object3D, molecule: Object3D): boolean {
+  const atomBB = boundingBox(atom);
+  if (!atomBB.intersectsBox(boundingBox(molecule))) {
+    // if the bounding boxes don't even touch, then for sure there's no bond
+    return false;
+  }
+
+  // the bounding boxes touch, but there may or may not be an intersection
+  for (const ma of molecule.children) {
+    const molAtomBB = boundingBox(ma).applyMatrix4(ma.matrixWorld);
+    if (atomBB.intersectsBox(molAtomBB) && sameColourTouching(trajectory, atom, ma)) {
+      return true;
+    }
+  }
+
   return false;
 }
 
@@ -226,10 +263,14 @@ class ParticleGroup {
   private glassBox = new GlassBox(-100, 100, -100, 100, -100, 100);
 
   constructor(private scene: Scene) {
-    this.makeAtom(vec(50, 50, 1), euler(0, 0, 0), uVec(-1, 0, 0));
-    this.makeAtom(vec(-50, 50, -1), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    this.makeAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+    this.makeAtom(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    this.makeAtom(vec(-5, 30, 0), euler(Math.PI, 0, 0), uVec(0, -1, 0));
+
+    /*
     this.makeAtom(vec(50, -50, 1), euler(0, 0, 0), uVec(-1, 0, 0));
     this.makeAtom(vec(-50, -50, -1), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    */
     /*
     this.makeAtom(vec(20, 5, 10), uVec(1, 1, 0));
     this.makeAtom(vec(0, 0, 0), uVec(1, 0, 1));
@@ -239,10 +280,9 @@ class ParticleGroup {
   }
 
   private makeAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
-    const atom = makeAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit);
-    this.add(atom);
-  }
-
+    this.add(makeAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
+  } 
+  
   update() {
     for (const p of this.allParticles()) {
       updateParticle(p, this.glassBox);
@@ -255,6 +295,17 @@ class ParticleGroup {
     while (!done) {
       done = this.maybeBond();
     }
+  }
+
+
+  private remove(p: Particle) {
+    this.scene.remove(p.object);
+    this.particles.delete(p.object.name);
+  }
+
+  private add(p: Particle) {
+    this.scene.add(p.object);
+    this.particles.set(p.object.name, p);
   }
 
   private maybeBond(): boolean {
@@ -273,6 +324,10 @@ class ParticleGroup {
   private bondParticles(p1: Particle, p2: Particle) {
     if (p1.isAtom && p2.isAtom) {
       this.makeNewMolecule(p1, p2);
+    } else if (p1.isAtom && !p2.isAtom) {
+      this.addAtomToMolecule(p1, p2);
+    } else if (!p1.isAtom && p2.isAtom) {
+      this.addAtomToMolecule(p2, p1);
     }
     // TODO the rest of the cases
   }
@@ -287,21 +342,12 @@ class ParticleGroup {
     this.remove(atom2);
 
     const startPos = avg(atom1.object.position, atom2.object.position);
-    const trajectoryUnit = cross(atom1.trajectoryUnit, atom2.trajectoryUnit);
-    console.log("t1: "+ atom1.trajectoryUnit.toArray() + ", t2: "+atom2.trajectoryUnit.toArray()+"new traj: "+ trajectoryUnit.toArray());
+    let trajectoryUnit = cross(atom1.trajectoryUnit, atom2.trajectoryUnit);
+    if (zero(trajectoryUnit)) {
+      trajectoryUnit = randomVector();
+    }
     const molecule = makeMolecule(startPos, null, null, trajectoryUnit, atom1.object, atom2.object);
-
     this.add(molecule);
-  }
-
-  private remove(p: Particle) {
-    this.scene.remove(p.object);
-    this.particles.delete(p.object.name);
-  }
-
-  private add(p: Particle) {
-    this.scene.add(p.object);
-    this.particles.set(p.object.name, p);
   }
 
   /**
@@ -309,11 +355,8 @@ class ParticleGroup {
    * atom is removed from scene and added to molecule's Group
    */
   private addAtomToMolecule(atom: Particle, molecule: Particle) {
-    //this.scene.remove(atom);
-    //molecule.attach(atom);
-
-    // Keep molecule's trajectory
-    // TODO adjust particle map
+    this.remove(atom);
+    molecule.object.attach(atom.object);
   }
 
   /**
