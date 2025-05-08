@@ -255,23 +255,6 @@ function updateParticle(p: Particle, glassBox: GlassBox) {
   }
 }
 
-function isBondable(particle1: Particle, particle2: Particle): boolean {
-  if (particle1.isAtom && particle2.isAtom) {
-    return isBondableAtoms(particle1.trajectoryUnit, particle1.object, particle2.object);
-  } else if (particle1.isAtom && !particle2.isAtom) {
-    return isMoleculeBondableToAtom(particle1.trajectoryUnit, particle1.object, particle2.object);
-  } else if (!particle1.isAtom && particle2.isAtom) {
-    return isMoleculeBondableToAtom(particle2.trajectoryUnit, particle2.object, particle1.object);
-  } else {
-    return false;
-  }
-}
-
-function isBondableAtoms(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
-  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) &&
-         sameColourTouching(trajectory, atom1, atom2);
-}
-
 function sameColourTouching(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
   for (let side = 0; side < 6; side++) {
     const wn1 = worldNormal(atom1, side);
@@ -288,7 +271,24 @@ function sameColourTouching(trajectory: Vector3, atom1: Object3D, atom2: Object3
   return false;
 }
 
-function isMoleculeBondableToAtom(trajectory: Vector3, atom: Object3D, molecule: Object3D): boolean {
+function isParticleParticleBond(particle1: Particle, particle2: Particle): boolean {
+  if (particle1.isAtom && particle2.isAtom) {
+    return isAtomAtomBond(particle1.trajectoryUnit, particle1.object, particle2.object);
+  } else if (particle1.isAtom && !particle2.isAtom) {
+    return isAtomMoleculeBond(particle1.trajectoryUnit, particle1.object, particle2.object);
+  } else if (!particle1.isAtom && particle2.isAtom) {
+    return isAtomMoleculeBond(particle2.trajectoryUnit, particle2.object, particle1.object);
+  } else {
+    return isMoleculeMoleculeBond(particle2.trajectoryUnit, particle2.object, particle1.object)
+  }
+}
+
+function isAtomAtomBond(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
+  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) &&
+         sameColourTouching(trajectory, atom1, atom2);
+}
+
+function isAtomMoleculeBond(trajectory: Vector3, atom: Object3D, molecule: Object3D): boolean {
   const atomBB = boundingBox(atom);
   if (!atomBB.intersectsBox(boundingBox(molecule))) {
     // if the bounding boxes don't even touch, then for sure there's no bond
@@ -300,6 +300,26 @@ function isMoleculeBondableToAtom(trajectory: Vector3, atom: Object3D, molecule:
     const molAtomBB = boundingBox(ma).applyMatrix4(ma.matrixWorld);
     if (atomBB.intersectsBox(molAtomBB) && sameColourTouching(trajectory, atom, ma)) {
       return true;
+    }
+  }
+
+  return false;
+}
+
+function isMoleculeMoleculeBond(trajectory: Vector3, molecule1: Object3D, molecule2: Object3D): boolean {
+  if (!boundingBox(molecule1).intersectsBox(boundingBox(molecule2))) {
+    // if the bounding boxes don't even touch, then for sure there's no bond
+    return false;
+  }
+
+  // the bounding boxes touch, but there may or may not be an intersection
+  for (const m1a of molecule1.children) {
+    for (const m2a of molecule2.children) {
+      const mol1AtomBB = boundingBox(m1a).applyMatrix4(m1a.matrixWorld);
+      const mol2AtomBB = boundingBox(m2a).applyMatrix4(m2a.matrixWorld);
+      if (mol1AtomBB.intersectsBox(mol2AtomBB) && sameColourTouching(trajectory, m1a, m2a)) {
+        return true;
+      }
     }
   }
 
@@ -365,7 +385,7 @@ class ParticleGroup {
     const particles = this.allParticles();
     for(let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
-        if (isBondable(particles[i], particles[j])) {
+        if (isParticleParticleBond(particles[i], particles[j])) {
           this.bondParticles(particles[i], particles[j]);
           return false;
         }
@@ -381,6 +401,8 @@ class ParticleGroup {
       this.addAtomToMolecule(p1, p2);
     } else if (!p1.isAtom && p2.isAtom) {
       this.addAtomToMolecule(p2, p1);
+    } else {
+      this.mergeMolecules(p1, p2);
     }
     // TODO the rest of the cases
   }
@@ -410,18 +432,19 @@ class ParticleGroup {
   private addAtomToMolecule(atom: Particle, molecule: Particle) {
     this.remove(atom);
     molecule.object.attach(atom.object);
+    
+    // TODO do I need to alter the position or center of mass here?
   }
 
   /**
    * Combine two molecules together
-   * Molecule2's Group is remove from scene, and it's children are added to molecule1
+   * Molecule2's Group is removed from scene, and it's children are added to molecule1
    */
   private mergeMolecules(molecule1: Particle, molecule2: Particle) {
-    //this.scene.remove(molecule2);
-    //molecule2.children.forEach((c) => molecule1.attach(c));
+    this.remove(molecule2);
+    molecule2.object.children.forEach((c) => molecule1.object.attach(c));
 
-    // TODO adjust particle map
-    // keep trajectory of surviving particle
+    // TODO do I need to alter the position or center of mass here?
   }
 
   private allParticles(): Particle[] {
