@@ -12,12 +12,12 @@ import { vec } from './utils';
 
 let id = 0;
 
-const SIDE_0_X_MAX_COLOUR = 0xff0000;
-const SIDE_1_X_MIN_COLOUR = 0xffa500;
-const SIDE_2_Y_MAX_COLOUR = 0xffff00;
-const SIDE_3_Y_MIN_COLOUR = 0x008000;
-const SIDE_4_Z_MAX_COLOUR = 0x0000ff;
-const SIDE_5_Z_MIN_COLOUR = 0x800080;
+const SIDE_0_X_MAX_COLOUR = 0xff0000; // red
+const SIDE_1_X_MIN_COLOUR = 0xffa500; // orange
+const SIDE_2_Y_MAX_COLOUR = 0xffff00; // yellow
+const SIDE_3_Y_MIN_COLOUR = 0x008000; // green
+const SIDE_4_Z_MAX_COLOUR = 0x0000ff; // blue
+const SIDE_5_Z_MIN_COLOUR = 0x800080; // purple
 
 export interface Particle {
   isAtom: boolean;

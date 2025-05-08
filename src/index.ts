@@ -102,16 +102,16 @@ class ParticleGroup {
       for (let j = i + 1; j < particles.length; j++) {
         const p1 = particles[i];
         const p2 = particles[j];
-        if (p1.isAtom && p2.isAtom && isAtomAtomBond(p1.trajectoryUnit, p1.object, p2.object)) {
+        if (p1.isAtom && p2.isAtom && isAtomAtomBond(p1.object, p2.object)) {
           this.makeNewMolecule(p1, p2);
           return false;
-        } else if (p1.isAtom && !p2.isAtom && isAtomMoleculeBond(p1.trajectoryUnit, p1.object, p2.object)) {
+        } else if (p1.isAtom && !p2.isAtom && isAtomMoleculeBond(p1.object, p2.object)) {
           this.addAtomToMolecule(p1, p2);
           return false;
-        } else if (!p1.isAtom && p2.isAtom && isAtomMoleculeBond(p2.trajectoryUnit, p2.object, p1.object)) {
+        } else if (!p1.isAtom && p2.isAtom && isAtomMoleculeBond(p2.object, p1.object)) {
           this.addAtomToMolecule(p2, p1);
           return false;
-        } else if (!p1.isAtom && !p2.isAtom && isMoleculeMoleculeBond(p2.trajectoryUnit, p2.object, p1.object)) {
+        } else if (!p1.isAtom && !p2.isAtom && isMoleculeMoleculeBond(p2.object, p1.object)) {
           this.mergeMolecules(p1, p2);
           return false;
         }
@@ -134,6 +134,7 @@ class ParticleGroup {
     if (isZero(trajectoryUnit)) {
       trajectoryUnit = randomVector();
     }
+
     const molecule = newMolecule(startPos, null, null, trajectoryUnit, atom1.object, atom2.object);
     this.add(molecule);
   }
