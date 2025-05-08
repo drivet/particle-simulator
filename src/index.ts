@@ -19,6 +19,58 @@ import {
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "stats.js";
 
+/**
+ * I DON'T WANT TO DO THIS, but I have no idea how we can do bounding box
+ * calculations while at the same time ignoring the normal lines sticking
+ * out of the box, which feels like the appropriate thing to do.
+ */
+const _vector = /*@__PURE__*/ new Vector3();
+const _box = /*@__PURE__*/ new Box3();
+Box3.prototype.expandByObject = function(object: any, precise = false): Box3 {
+  object.updateWorldMatrix( false, false );
+  const geometry = object.geometry;
+  if ( geometry !== undefined ) {
+
+    const positionAttribute = geometry.getAttribute( 'position' );
+    if ( precise === true && positionAttribute !== undefined && object.isInstancedMesh !== true ) {
+      for ( let i = 0, l = positionAttribute.count; i < l; i ++ ) {
+
+        if ( object.isMesh === true ) {
+          object.getVertexPosition( i, _vector );
+        } else {
+          _vector.fromBufferAttribute( positionAttribute, i );
+        }
+        _vector.applyMatrix4( object.matrixWorld );
+        this.expandByPoint( _vector );
+      }
+    } else {
+      if ( object.boundingBox !== undefined ) {
+        // object-level bounding box
+        if ( object.boundingBox === null ) {
+          object.computeBoundingBox();
+        }
+        _box.copy( object.boundingBox );
+      } else {
+        // geometry-level bounding box
+        if ( geometry.boundingBox === null ) {
+          geometry.computeBoundingBox();
+        }
+        _box.copy( geometry.boundingBox );
+      }
+
+      _box.applyMatrix4( object.matrixWorld );
+      this.union( _box );
+    }
+  }
+
+  const children = object.children.filter(c => c.name !== "line");
+  for ( let i = 0, l = children.length; i < l; i ++ ) {
+    this.expandByObject( children[ i ], precise );
+  }
+
+  return this;
+}
+
 //
 let id = 0;
 function newId(): number {
@@ -115,18 +167,19 @@ function makeAtom(startPos: Vector3, startRot: Euler | null,
     const n0 = new Vector3(0, 0, 0);
     const geo = new BufferGeometry().setFromPoints([n0, n1]);
     const n = new Line(geo, new LineBasicMaterial({ color }));
+    n.name = "line";
     object.add(n);
   }
 
   addCubeToGroup(object);
-/*
+
   addNormalLine(vec(1.5, 0, 0), 0xff0000);
   addNormalLine(vec(-1.5, 0, 0), 0xffa500);
   addNormalLine(vec(0, 1.5, 0), 0xffff00);
   addNormalLine(vec(0, -1.5, 0), 0x008000);
   addNormalLine(vec(0, 0, 1.5), 0x0000ff);
   addNormalLine(vec(0, 0, -1.5), 0x800080);
-*/
+
   return { isAtom: true, object, trajectoryUnit, rotationInc }
 }
 
@@ -225,7 +278,7 @@ function sameColourTouching(trajectory: Vector3, atom1: Object3D, atom2: Object3
     const wn2 = worldNormal(atom2, side);
     const d1 = wn1.dot(wn2);
     const d2 = wn1.dot(trajectory);
-    if (d1 < 0 && (d1 * -1) >= COLLINEAR_THRESHHOLD && d2 >= COLLINEAR_THRESHHOLD) {
+    if ((d1 * -1) >= COLLINEAR_THRESHHOLD && Math.abs(d2) >= COLLINEAR_THRESHHOLD) {
       // same coloured normals are pointed in opposite directions AND
       // the normal is in the direction of the trajectory
       // this is a bonding condition if the atoms are touching
