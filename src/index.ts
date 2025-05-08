@@ -1,233 +1,20 @@
 import {
   Scene,
   Color,
-  Mesh,
-  MeshBasicMaterial,
-  BoxBufferGeometry,
   PerspectiveCamera,
   WebGLRenderer,
   OrthographicCamera,
   Vector3,
-  Box3,
-  Plane,
-  Group,
-  Object3D,
-  BufferGeometry,
-  Line,
-  LineBasicMaterial, Euler,
+  Euler,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "stats.js";
+import { Enclosure } from './enclosure';
+import { avg, boundingBox, cross, euler, randomVector, uVec, vec, isZero } from './utils';
+import { isAtomAtomBond, isAtomMoleculeBond, isMoleculeMoleculeBond } from './bonding';
+import { newAtom, newMolecule, Particle } from './particle';
 
-/**
- * I DON'T WANT TO DO THIS, but I have no idea how we can do bounding box
- * calculations while at the same time ignoring the normal lines sticking
- * out of the box, which feels like the appropriate thing to do.
- */
-const _vector = /*@__PURE__*/ new Vector3();
-const _box = /*@__PURE__*/ new Box3();
-Box3.prototype.expandByObject = function(object: any, precise = false): Box3 {
-  object.updateWorldMatrix( false, false );
-  const geometry = object.geometry;
-  if ( geometry !== undefined ) {
-
-    const positionAttribute = geometry.getAttribute( 'position' );
-    if ( precise === true && positionAttribute !== undefined && object.isInstancedMesh !== true ) {
-      for ( let i = 0, l = positionAttribute.count; i < l; i ++ ) {
-
-        if ( object.isMesh === true ) {
-          object.getVertexPosition( i, _vector );
-        } else {
-          _vector.fromBufferAttribute( positionAttribute, i );
-        }
-        _vector.applyMatrix4( object.matrixWorld );
-        this.expandByPoint( _vector );
-      }
-    } else {
-      if ( object.boundingBox !== undefined ) {
-        // object-level bounding box
-        if ( object.boundingBox === null ) {
-          object.computeBoundingBox();
-        }
-        _box.copy( object.boundingBox );
-      } else {
-        // geometry-level bounding box
-        if ( geometry.boundingBox === null ) {
-          geometry.computeBoundingBox();
-        }
-        _box.copy( geometry.boundingBox );
-      }
-
-      _box.applyMatrix4( object.matrixWorld );
-      this.union( _box );
-    }
-  }
-
-  const children = object.children.filter(c => c.name !== "line");
-  for ( let i = 0, l = children.length; i < l; i ++ ) {
-    this.expandByObject( children[ i ], precise );
-  }
-
-  return this;
-}
-
-//
-let id = 0;
-function newId(): number {
-  const retId = id;
-  id++;
-  return retId;
-}
-
-function name(prefix: string): string {
-  return `${prefix}${newId()}`
-}
-
-const COLLINEAR_THRESHHOLD = 0.99;
-const ZERO_THRESHOLD = 0.001;
-
-function boundingBox(object: Object3D) {
-  const box = new Box3(new Vector3(), new Vector3());
-  box.setFromObject(object);
-  return box;
-}
-
-function vec(x: number, y: number, z: number): Vector3 {
-  return new Vector3(x, y, z);
-}
-
-function uVec(x: number, y: number, z: number): Vector3 {
-  return new Vector3(x, y, z).normalize();
-}
-
-function euler(x: number, y: number, z: number): Euler {
-  return new Euler(x, y, z);
-}
-
-function avg(v1: Vector3, v2: Vector3) {
-  const v3 = new Vector3();
-  v3.addVectors(v1, v2);
-  v3.divideScalar(2);
-  return v3;
-}
-
-function cross(v1: Vector3, v2: Vector3) {
-  const v3 = new Vector3();
-  v3.crossVectors(v1, v2);
-  return v3;
-}
-
-function randomVector(): Vector3 {
-  const v = new Vector3();
-  v.set(Math.random(), Math.random(), Math.random());
-  return v;
-}
-
-function zero(v: Vector3): boolean {
-  return Math.abs(v.x - 0) <= ZERO_THRESHOLD && Math.abs(v.y - 0) <= ZERO_THRESHOLD && Math.abs(v.z - 0) <= ZERO_THRESHOLD;
-}
-
-interface Particle {
-  isAtom: boolean;
-  trajectoryUnit: Vector3;
-  rotationInc: Euler | null;
-  object: Object3D;
-}
-
-function initObject3D(object: Object3D, name: string, startPos: Vector3, startRot: Euler | null): Object3D {
-  object.name = name;
-  object.position.copy(startPos);
-  object.rotation.copy(startRot ? startRot : new Euler());
-  return object;
-}
-
-function addCubeToGroup(object: Object3D) {
-  const geometry = new BoxBufferGeometry(1, 1, 1);
-  geometry.computeBoundingBox();
-  const materials = [
-    new MeshBasicMaterial({ color: 0xff0000 }),
-    new MeshBasicMaterial({ color: 0xffa500 }),
-    new MeshBasicMaterial({ color: 0xffff00 }),
-    new MeshBasicMaterial({ color: 0x008000 }),
-    new MeshBasicMaterial({ color: 0x0000ff }),
-    new MeshBasicMaterial({ color: 0x800080 }),
-  ];
-  const cubeMesh = new Mesh(geometry, materials);
-  cubeMesh.name = "mesh";
-  object.add(cubeMesh);
-  // stretch in all directions, so this will make the cubes 10 length
-  object.scale.set(5, 5, 5);
-}
-
-function makeAtom(startPos: Vector3, startRot: Euler | null,
-                  rotationInc: Euler | null, trajectoryUnit: Vector3): Particle {
-  const object = initObject3D(new Group(), name('atom_'), startPos, startRot);
-
-  function addNormalLine(n1: Vector3, color: number) {
-    const n0 = new Vector3(0, 0, 0);
-    const geo = new BufferGeometry().setFromPoints([n0, n1]);
-    const n = new Line(geo, new LineBasicMaterial({ color }));
-    n.name = "line";
-    object.add(n);
-  }
-
-  addCubeToGroup(object);
-
-  addNormalLine(vec(1.5, 0, 0), 0xff0000);
-  addNormalLine(vec(-1.5, 0, 0), 0xffa500);
-  addNormalLine(vec(0, 1.5, 0), 0xffff00);
-  addNormalLine(vec(0, -1.5, 0), 0x008000);
-  addNormalLine(vec(0, 0, 1.5), 0x0000ff);
-  addNormalLine(vec(0, 0, -1.5), 0x800080);
-
-  return { isAtom: true, object, trajectoryUnit, rotationInc }
-}
-
-function makeMolecule(startPos: Vector3, startRot: Euler | null,
-                      rotationInc: Euler | null, trajectoryUnit: Vector3,
-                      ...atoms: Object3D[]): Particle {
-  const object = initObject3D(new Group(), name('molecule_'), startPos, startRot);
-  for (const a of atoms) {
-    object.attach(a);
-  }
-  return { isAtom: false, object, trajectoryUnit, rotationInc }
-}
-
-/**
- * Should really only be called with atoms
- */
-function worldNormal(object: Object3D, side: number): Vector3 {
-  if (side < 0 || side > 5) {
-    throw new Error("side must be between 0 and 5");
-  }
-
-  let n: Vector3;
-  switch (side) {
-    case 0:
-      n = vec(1, 0, 0);
-      break;
-    case 1:
-      n = vec(-1, 0, 0);
-      break;
-    case 2:
-      n = vec(0, 1, 0);
-      break;
-    case 3:
-      n = vec(0, -1, 0);
-      break;
-    case 4:
-      n = vec(0, 0, 1);
-      break;
-    default:
-      n = vec(0, 0, -1);
-      break;
-  }
-
-  const wn = n.applyMatrix4(object.matrixWorld);
-  return wn.sub(object.position).normalize();
-}
-
-function updateParticle(p: Particle, glassBox: GlassBox) {
+function updateParticle(p: Particle, glassBox: Enclosure) {
   if (p.rotationInc) {
     p.object.rotation.x += p.rotationInc.x;
     p.object.rotation.y += p.rotationInc.y;
@@ -255,77 +42,6 @@ function updateParticle(p: Particle, glassBox: GlassBox) {
   }
 }
 
-function sameColourTouching(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
-  for (let side = 0; side < 6; side++) {
-    const wn1 = worldNormal(atom1, side);
-    const wn2 = worldNormal(atom2, side);
-    const d1 = wn1.dot(wn2);
-    const d2 = wn1.dot(trajectory);
-    if ((d1 * -1) >= COLLINEAR_THRESHHOLD && Math.abs(d2) >= COLLINEAR_THRESHHOLD) {
-      // same coloured normals are pointed in opposite directions AND
-      // the normal is in the direction of the trajectory
-      // this is a bonding condition if the atoms are touching
-      return true;
-    }
-  }
-  return false;
-}
-
-function isParticleParticleBond(particle1: Particle, particle2: Particle): boolean {
-  if (particle1.isAtom && particle2.isAtom) {
-    return isAtomAtomBond(particle1.trajectoryUnit, particle1.object, particle2.object);
-  } else if (particle1.isAtom && !particle2.isAtom) {
-    return isAtomMoleculeBond(particle1.trajectoryUnit, particle1.object, particle2.object);
-  } else if (!particle1.isAtom && particle2.isAtom) {
-    return isAtomMoleculeBond(particle2.trajectoryUnit, particle2.object, particle1.object);
-  } else {
-    return isMoleculeMoleculeBond(particle2.trajectoryUnit, particle2.object, particle1.object)
-  }
-}
-
-function isAtomAtomBond(trajectory: Vector3, atom1: Object3D, atom2: Object3D): boolean {
-  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) &&
-         sameColourTouching(trajectory, atom1, atom2);
-}
-
-function isAtomMoleculeBond(trajectory: Vector3, atom: Object3D, molecule: Object3D): boolean {
-  const atomBB = boundingBox(atom);
-  if (!atomBB.intersectsBox(boundingBox(molecule))) {
-    // if the bounding boxes don't even touch, then for sure there's no bond
-    return false;
-  }
-
-  // the bounding boxes touch, but there may or may not be an intersection
-  for (const ma of molecule.children) {
-    const molAtomBB = boundingBox(ma).applyMatrix4(ma.matrixWorld);
-    if (atomBB.intersectsBox(molAtomBB) && sameColourTouching(trajectory, atom, ma)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function isMoleculeMoleculeBond(trajectory: Vector3, molecule1: Object3D, molecule2: Object3D): boolean {
-  if (!boundingBox(molecule1).intersectsBox(boundingBox(molecule2))) {
-    // if the bounding boxes don't even touch, then for sure there's no bond
-    return false;
-  }
-
-  // the bounding boxes touch, but there may or may not be an intersection
-  for (const m1a of molecule1.children) {
-    for (const m2a of molecule2.children) {
-      const mol1AtomBB = boundingBox(m1a).applyMatrix4(m1a.matrixWorld);
-      const mol2AtomBB = boundingBox(m2a).applyMatrix4(m2a.matrixWorld);
-      if (mol1AtomBB.intersectsBox(mol2AtomBB) && sameColourTouching(trajectory, m1a, m2a)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 /**
  * Manages all the particles in the scene
  */
@@ -333,7 +49,7 @@ class ParticleGroup {
   private particles = new Map<string, Particle>();
 
   // create the bounding box that we will eventually bounce off of
-  private glassBox = new GlassBox(-100, 100, -100, 100, -100, 100);
+  private enclosure = new Enclosure(-100, 100, -100, 100, -100, 100);
 
   constructor(private scene: Scene) {
     this.makeAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
@@ -353,12 +69,12 @@ class ParticleGroup {
   }
 
   private makeAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
-    this.add(makeAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
-  } 
-  
+    this.add(newAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
+  }
+
   update() {
     for (const p of this.allParticles()) {
-      updateParticle(p, this.glassBox);
+      updateParticle(p, this.enclosure);
     }
     this.condense();
   }
@@ -369,7 +85,6 @@ class ParticleGroup {
       done = this.maybeBond();
     }
   }
-
 
   private remove(p: Particle) {
     this.scene.remove(p.object);
@@ -385,26 +100,24 @@ class ParticleGroup {
     const particles = this.allParticles();
     for(let i = 0; i < particles.length; i++) {
       for (let j = i + 1; j < particles.length; j++) {
-        if (isParticleParticleBond(particles[i], particles[j])) {
-          this.bondParticles(particles[i], particles[j]);
+        const p1 = particles[i];
+        const p2 = particles[j];
+        if (p1.isAtom && p2.isAtom && isAtomAtomBond(p1.trajectoryUnit, p1.object, p2.object)) {
+          this.makeNewMolecule(p1, p2);
+          return false;
+        } else if (p1.isAtom && !p2.isAtom && isAtomMoleculeBond(p1.trajectoryUnit, p1.object, p2.object)) {
+          this.addAtomToMolecule(p1, p2);
+          return false;
+        } else if (!p1.isAtom && p2.isAtom && isAtomMoleculeBond(p2.trajectoryUnit, p2.object, p1.object)) {
+          this.addAtomToMolecule(p2, p1);
+          return false;
+        } else if (!p1.isAtom && !p2.isAtom && isMoleculeMoleculeBond(p2.trajectoryUnit, p2.object, p1.object)) {
+          this.mergeMolecules(p1, p2);
           return false;
         }
       }
     }
     return true;
-  }
-
-  private bondParticles(p1: Particle, p2: Particle) {
-    if (p1.isAtom && p2.isAtom) {
-      this.makeNewMolecule(p1, p2);
-    } else if (p1.isAtom && !p2.isAtom) {
-      this.addAtomToMolecule(p1, p2);
-    } else if (!p1.isAtom && p2.isAtom) {
-      this.addAtomToMolecule(p2, p1);
-    } else {
-      this.mergeMolecules(p1, p2);
-    }
-    // TODO the rest of the cases
   }
 
   /**
@@ -418,10 +131,10 @@ class ParticleGroup {
 
     const startPos = avg(atom1.object.position, atom2.object.position);
     let trajectoryUnit = cross(atom1.trajectoryUnit, atom2.trajectoryUnit);
-    if (zero(trajectoryUnit)) {
+    if (isZero(trajectoryUnit)) {
       trajectoryUnit = randomVector();
     }
-    const molecule = makeMolecule(startPos, null, null, trajectoryUnit, atom1.object, atom2.object);
+    const molecule = newMolecule(startPos, null, null, trajectoryUnit, atom1.object, atom2.object);
     this.add(molecule);
   }
 
@@ -432,7 +145,7 @@ class ParticleGroup {
   private addAtomToMolecule(atom: Particle, molecule: Particle) {
     this.remove(atom);
     molecule.object.attach(atom.object);
-    
+
     // TODO do I need to alter the position or center of mass here?
   }
 
@@ -452,130 +165,78 @@ class ParticleGroup {
   }
 }
 
-  /**
-   * I thought I could just use a Box3 to define the "glass enclosure"
-   * but I was having trouble doing collision detection - it was as if "intersect" was
-   * always true if the cube was in the box.
-   *
-   * So I'm going to try representing the glass box as 6 separate planes and testing
-   * intersection with each of those.
-   *
-   * The glass box here is aligned and centered on the axes.
-   */
-  class GlassBox {
-    private planeMinX: Plane;
-    private planeMaxX: Plane;
-    private planeMinY: Plane;
-    private planeMaxY: Plane;
-    private planeMinZ: Plane;
-    private planeMaxZ: Plane;
-    constructor(
-      minX: number,
-      maxX: number,
-      minY: number,
-      maxY: number,
-      minZ: number,
-      maxZ: number
-    ) {
-      this.planeMinX = new Plane(new Vector3(1, 0, 0), -minX);
-      this.planeMaxX = new Plane(new Vector3(-1, 0, 0), maxX);
-      this.planeMinY = new Plane(new Vector3(0, 1, 0), -minY);
-      this.planeMaxY = new Plane(new Vector3(0, -1, 0), maxY);
-      this.planeMinZ = new Plane(new Vector3(0, 0, 1), -minZ);
-      this.planeMaxZ = new Plane(new Vector3(0, 0, -1), maxZ);
-    }
+class Main {
+  public scene: Scene;
+  public camera: PerspectiveCamera | OrthographicCamera;
+  public renderer: WebGLRenderer;
+  public controls: OrbitControls;
+  public stats: Stats;
+  public particleGroup: ParticleGroup;
 
-    collision(bb: Box3) {
-      if (this.planeMinX.intersectsBox(bb)) {
-        return this.planeMinX;
-      } else if (this.planeMaxX.intersectsBox(bb)) {
-        return this.planeMaxX;
-      } else if (this.planeMinY.intersectsBox(bb)) {
-        return this.planeMinY;
-      } else if (this.planeMaxY.intersectsBox(bb)) {
-        return this.planeMaxY;
-      } else if (this.planeMinZ.intersectsBox(bb)) {
-        return this.planeMinZ;
-      } else if (this.planeMaxZ.intersectsBox(bb)) {
-        return this.planeMaxZ;
-      } else {
-        return undefined;
-      }
-    }
+  constructor() {
+    this.initViewport();
   }
 
-  class Main {
-    public scene: Scene;
-    public camera: PerspectiveCamera | OrthographicCamera;
-    public renderer: WebGLRenderer;
-    public controls: OrbitControls;
-    public stats: Stats;
-    public particleGroup: ParticleGroup;
+  /** Initialize the viewport */
+  public initViewport() {
+    // Init scene.
+    this.scene = new Scene();
+    this.scene.background = new Color("#191919");
 
-    constructor() {
-      this.initViewport();
-    }
+    // Init camera.
+    const aspect = window.innerWidth / window.innerHeight;
+    this.camera = new PerspectiveCamera(50, aspect, 1, 1000);
+    this.camera.position.z = 300;
 
-    /** Initialize the viewport */
-    public initViewport() {
-      // Init scene.
-      this.scene = new Scene();
-      this.scene.background = new Color("#191919");
+    // Init renderer.
+    this.renderer = new WebGLRenderer({
+      powerPreference: "high-performance",
+      antialias: true,
+    });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setAnimationLoop(() => this.animate());
+    document.body.appendChild(this.renderer.domElement);
+    window.addEventListener("resize", () => this.onResize());
 
-      // Init camera.
-      const aspect = window.innerWidth / window.innerHeight;
-      this.camera = new PerspectiveCamera(50, aspect, 1, 1000);
-      this.camera.position.z = 300;
+    // Init stats.
+    this.stats = new Stats();
+    document.body.appendChild(this.stats.dom);
 
-      // Init renderer.
-      this.renderer = new WebGLRenderer({
-        powerPreference: "high-performance",
-        antialias: true,
-      });
-      this.renderer.setPixelRatio(window.devicePixelRatio);
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.renderer.render(this.scene, this.camera);
-      this.renderer.setAnimationLoop(() => this.animate());
-      document.body.appendChild(this.renderer.domElement);
-      window.addEventListener("resize", () => this.onResize());
+    // Init orbit controls.
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.update();
+    this.controls.addEventListener("change", () => this.render());
 
-      // Init stats.
-      this.stats = new Stats();
-      document.body.appendChild(this.stats.dom);
+    this.particleGroup = new ParticleGroup(this.scene);
 
-      // Init orbit controls.
-      this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-      this.controls.update();
-      this.controls.addEventListener("change", () => this.render());
-
-      this.particleGroup = new ParticleGroup(this.scene);
-
-      this.render();
-    }
-
-    private render() {
-      this.stats.begin();
-      this.renderer.render(this.scene, this.camera);
-      this.stats.end();
-    }
-
-    public animate() {
-      this.stats.begin();
-      this.particleGroup.update();
-      this.controls.update();
-      this.renderer.render(this.scene, this.camera);
-
-      this.stats.end();
-    }
-
-    public onResize() {
-      if (this.camera instanceof PerspectiveCamera) {
-        this.camera.aspect = window.innerWidth / window.innerHeight;
-        this.camera.updateProjectionMatrix();
-      }
-      this.renderer.setSize(window.innerWidth, window.innerHeight);
-      this.render();
-    }
+    this.render();
   }
 
-  new Main();
+  private render() {
+    this.stats.begin();
+    this.renderer.render(this.scene, this.camera);
+    this.stats.end();
+  }
+
+  public animate() {
+    this.stats.begin();
+    this.particleGroup.update();
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+
+    this.stats.end();
+  }
+
+  public onResize() {
+    if (this.camera instanceof PerspectiveCamera) {
+      this.camera.aspect = window.innerWidth / window.innerHeight;
+      this.camera.updateProjectionMatrix();
+    }
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.render();
+  }
+}
+
+new Main();
