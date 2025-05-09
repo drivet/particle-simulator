@@ -5,7 +5,7 @@ import {
   Line,
   LineBasicMaterial, Mesh,
   MeshBasicMaterial,
-  Object3D,
+  Object3D, Plane,
   Vector3
 } from 'three';
 import { vec } from './utils';
@@ -19,7 +19,8 @@ const SIDE_3_Y_MIN_COLOUR = 0x008000; // green
 const SIDE_4_Z_MAX_COLOUR = 0x0000ff; // blue
 const SIDE_5_Z_MIN_COLOUR = 0x800080; // purple
 
-const STANDARD_ROTATION = new Euler(0.01, 0.002, 0.004);
+const STANDARD_ROTATION_INC = new Euler(0.01, 0.002, 0.004);
+const STANDARD_SPEED = 0.5;
 
 export interface Particle {
   isAtom: boolean;
@@ -82,7 +83,7 @@ export function newAtom(startPos: Vector3, startRot: Euler, trajUnit: Vector3): 
   addNormalLine(object, vec(0, 0, 1), SIDE_4_Z_MAX_COLOUR);
   addNormalLine(object, vec(0, 0, -1), SIDE_5_Z_MIN_COLOUR);
 
-  return { isAtom: true, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION }
+  return { isAtom: true, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION_INC }
 }
 
 export function newMolecule(startPos: Vector3, startRot: Euler, trajUnit: Vector3,
@@ -91,5 +92,32 @@ export function newMolecule(startPos: Vector3, startRot: Euler, trajUnit: Vector
   for (const a of atoms) {
       object.attach(a);
   }
-  return { isAtom: false, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION }
+  return { isAtom: false, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION_INC }
+}
+
+export function updateParticle(p: Particle) {
+  p.object.rotation.x += p.rotationInc.x;
+  p.object.rotation.y += p.rotationInc.y;
+  p.object.rotation.z += p.rotationInc.z;
+
+  const moveBy = new Vector3();
+  moveBy.copy(p.trajectoryUnit);
+  moveBy.multiplyScalar(STANDARD_SPEED);
+  p.object.position.add(moveBy);
+
+  // world matrix is normally updated every frame, but we need an updated
+  // version *now*, after we've just updated all the geometric parameters,
+  // so calculate it here.
+  p.object.updateMatrixWorld(true);
+}
+
+/**
+ * Move the atom atom back a tick along the reverse of its trajectory
+ */
+export function reverseSlightly(p: Particle) {
+  p.object.position.add(new Vector3().copy(p.trajectoryUnit).multiplyScalar(STANDARD_SPEED).negate());
+}
+
+export function reflect(p: Particle, plane: Plane) {
+  p.trajectoryUnit.reflect(plane.normal).normalize();
 }

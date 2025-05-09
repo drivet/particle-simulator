@@ -6,47 +6,24 @@ import {
   OrthographicCamera,
   Vector3,
   Euler,
-  MathUtils,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "stats.js";
 import { Enclosure } from './enclosure';
-import { avg, boundingBox, cross, randomVector, isZero, randomEuler } from './utils';
+import { avg, cross, randomVector, isZero, randomEuler } from './utils';
 import { isAtomAtomBond, isAtomMoleculeBond, isMoleculeMoleculeBond } from './bonding';
-import { newAtom, newMolecule, Particle } from './particle';
-
-function updateParticle(p: Particle, glassBox: Enclosure) { 
-  p.object.rotation.x += p.rotationInc.x;
-  p.object.rotation.y += p.rotationInc.y;
-  p.object.rotation.z += p.rotationInc.z;
-
-  const moveBy = new Vector3();
-  moveBy.copy(p.trajectoryUnit);
-  moveBy.multiplyScalar(0.2);
-  p.object.position.add(moveBy);
-
-  // world matrix is normally updated every frame, but we need an updated
-  // version *now*, after we've just updated all the geometric parameters,
-  // so calculate it here.
-  p.object.updateMatrixWorld(true);
-
-  const thisBox = boundingBox(p.object);
-  const plane = glassBox.collision(thisBox);
-  if (plane) {
-    p.trajectoryUnit.reflect(plane.normal).normalize();
-  }
-}
+import { newAtom, newMolecule, Particle, updateParticle } from './particle';
 
 /**
  * Manages all the particles in the scene
  */
 class ParticleGroup {
   private particles = new Map<string, Particle>();
-
-  // create the bounding box that we will eventually bounce off of
-  private enclosure = new Enclosure(-100, 100, -100, 100, -100, 100);
+  private enclosure: Enclosure;
 
   constructor(private scene: Scene) {
+    // create the bounding box that we will eventually bounce off of
+    this.enclosure = new Enclosure(scene, -100, 100, -100, 100, -100, 100);
     //this.spawnDoubleMol(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
     //this.spawnDoubleMol(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
     /*
@@ -71,26 +48,27 @@ class ParticleGroup {
   }
 
   private spawnDoubleMol(startPos: Vector3, startRot: Euler, traj: Vector3) {
-    const atom1 = newAtom(vec(0, 0, 0), new Euler(), new Euler(), new Vector3()); 
+    const atom1 = newAtom(vec(0, 0, 0), new Euler(), new Euler(), new Vector3());
     const atom2 = newAtom(vec(5, 0, 0), new Euler(), new Euler(), new Vector3());
     const mol = newMolecule(startPos, startRot, new Euler(), traj);
     mol.object.add(atom1.object);
     mol.object.add(atom2.object);
     this.add(mol);
   }
-*/ 
+*/
 
   spawnAtom(startPos: Vector3, startRot: Euler, traj: Vector3) {
     this.add(newAtom(startPos, startRot, traj));
   }
-  
+
   spawnRandomAtom() {
-    this.spawnAtom(this.randomPos(), randomEuler(), this.randomTrajectory());
+    this.spawnAtom(this.enclosure.randomPos(), randomEuler(), this.randomTrajectory());
   }
 
   update() {
     for (const p of this.allParticles()) {
-      updateParticle(p, this.enclosure);
+      updateParticle(p);
+      this.enclosure.maybeBounce(p);
     }
     this.condense();
   }
@@ -104,10 +82,6 @@ class ParticleGroup {
 
   private randomTrajectory(): Vector3 {
     return randomVector(-1, 1).normalize();
-  }
-
-  private randomPos(): Vector3 {
-    return randomVector(-80, 80);
   }
 
   private remove(p: Particle) {

@@ -1,5 +1,8 @@
-import { Plane, Vector3 } from 'three';
-import { Box3 } from './box3';
+import { BoxBufferGeometry, MathUtils, Mesh, MeshBasicMaterial, Object3D, Plane, Scene, Vector3 } from 'three';
+import { boundingBox, vec } from './utils';
+import { reverseSlightly, Particle, reflect } from './particle';
+
+const EDGE_CLEARANCE_PERCENT = 0.1;
 
 /**
  * I thought I could just use a Box3 to define the "glass enclosure"
@@ -12,43 +15,67 @@ import { Box3 } from './box3';
  * The glass box here is aligned and centered on the axes.
  */
 export class Enclosure {
-  private planeMinX: Plane;
-  private planeMaxX: Plane;
-  private planeMinY: Plane;
-  private planeMaxY: Plane;
-  private planeMinZ: Plane;
-  private planeMaxZ: Plane;
+  private sizeX: number;
+  private sizeY: number;
+  private sizeZ: number;
+  private box: Object3D;
+  private planes: Plane[];
+  private clearX: number;
+  private clearY: number;
+  private clearZ: number;
+
   constructor(
-    minX: number,
-    maxX: number,
-    minY: number,
-    maxY: number,
-    minZ: number,
-    maxZ: number
+    private scene: Scene,
+    private minX: number,
+    private maxX: number,
+    private minY: number,
+    private maxY: number,
+    private minZ: number,
+    private maxZ: number
   ) {
-    this.planeMinX = new Plane(new Vector3(1, 0, 0), -minX);
-    this.planeMaxX = new Plane(new Vector3(-1, 0, 0), maxX);
-    this.planeMinY = new Plane(new Vector3(0, 1, 0), -minY);
-    this.planeMaxY = new Plane(new Vector3(0, -1, 0), maxY);
-    this.planeMinZ = new Plane(new Vector3(0, 0, 1), -minZ);
-    this.planeMaxZ = new Plane(new Vector3(0, 0, -1), maxZ);
+    this.planes = [
+      new Plane(vec(1, 0, 0), -minX),
+      new Plane(vec(-1, 0, 0), maxX),
+      new Plane(vec(0, 1, 0), -minY),
+      new Plane(vec(0, -1, 0), maxY),
+      new Plane(vec(0, 0, 1), -minZ),
+      new Plane(vec(0, 0, -1), maxZ),
+    ];
+
+    this.sizeX = maxX - minX;
+    this.sizeY = maxY - minY;
+    this.sizeZ = maxZ - minZ;
+
+    this.clearX = EDGE_CLEARANCE_PERCENT * this.sizeX;
+    this.clearY = EDGE_CLEARANCE_PERCENT * this.sizeY;
+    this.clearZ = EDGE_CLEARANCE_PERCENT * this.sizeZ;
+
+    const geometry = new BoxBufferGeometry(this.sizeX, this.sizeY, this.sizeZ);
+    const material = new MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.2 });
+    this.box = new Mesh(geometry, material);
+    this.scene.add(this.box);
   }
 
-  collision(bb: Box3): Plane | undefined {
-    if (this.planeMinX.intersectsBox(bb)) {
-      return this.planeMinX;
-    } else if (this.planeMaxX.intersectsBox(bb)) {
-      return this.planeMaxX;
-    } else if (this.planeMinY.intersectsBox(bb)) {
-      return this.planeMinY;
-    } else if (this.planeMaxY.intersectsBox(bb)) {
-      return this.planeMaxY;
-    } else if (this.planeMinZ.intersectsBox(bb)) {
-      return this.planeMinZ;
-    } else if (this.planeMaxZ.intersectsBox(bb)) {
-      return this.planeMaxZ;
-    } else {
-      return undefined;
+  maybeBounce(p: Particle) {
+    const bb = boundingBox(p.object);
+    const plane = this.planes.find(p => p.intersectsBox(bb));
+    if (plane) {
+      // Bounce the atom off the plane by reflecting the trajectory.
+      // Sometimes the atom gets embedded in the plane which can wreak havoc when we change the trajectory,
+      // so we're going to move the atom back a little bit, and then reflect the trajectory
+      reverseSlightly(p);
+      reflect(p, plane);
     }
+  }
+
+  /**
+   * Return a random position vector in the enclosure, arbitrarily considering about 80% of the volume
+   * so we don't get a position too close to the edge
+   * */
+  randomPos(): Vector3 {
+    const x = MathUtils.randFloat(this.minX + this.clearX, this.maxX - this.clearX);
+    const y = MathUtils.randFloat(this.minY + this.clearY, this.maxY - this.clearY);
+    const z = MathUtils.randFloat(this.minZ + this.clearZ, this.maxZ - this.clearZ);
+    return vec(x, y, z);
   }
 }
