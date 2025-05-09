@@ -52,10 +52,13 @@ class ParticleGroup {
   private enclosure = new Enclosure(-100, 100, -100, 100, -100, 100);
 
   constructor(private scene: Scene) {
-    this.makeAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-    this.makeAtom(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
-    this.makeAtom(vec(-5, 30, 0), euler(Math.PI, 0, 0), uVec(0, -1, 0));
-
+    this.spawnDoubleMol(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+    this.spawnDoubleMol(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    /*
+    this.spawnAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+    this.spawnAtom(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    this.spawnAtom(vec(-5, 30, 0), euler(Math.PI, 0, 0), uVec(0, -1, 0));
+*/
     /*
     this.makeAtom(vec(50, -50, 1), euler(0, 0, 0), uVec(-1, 0, 0));
     this.makeAtom(vec(-50, -50, -1), euler(0, Math.PI, 0), uVec(1, 0, 0));
@@ -68,8 +71,17 @@ class ParticleGroup {
     */
   }
 
-  private makeAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
+  private spawnAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
     this.add(newAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
+  }
+
+  private spawnDoubleMol(startPos: Vector3, startRot: Euler, traj: Vector3) {
+    const atom1 = newAtom(vec(0, 0, 0), new Euler(), new Euler(), new Vector3()); 
+    const atom2 = newAtom(vec(5, 0, 0), new Euler(), new Euler(), new Vector3());
+    const mol = newMolecule(startPos, startRot, new Euler(), traj);
+    mol.object.add(atom1.object);
+    mol.object.add(atom2.object);
+    this.add(mol);
   }
 
   update() {
@@ -156,7 +168,8 @@ class ParticleGroup {
    */
   private mergeMolecules(molecule1: Particle, molecule2: Particle) {
     this.remove(molecule2);
-    molecule2.object.children.forEach((c) => molecule1.object.attach(c));
+    const atoms = [...molecule2.object.children];
+    atoms.forEach(c => molecule1.object.attach(c));
 
     // TODO do I need to alter the position or center of mass here?
   }

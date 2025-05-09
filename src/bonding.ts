@@ -2,7 +2,7 @@ import { Object3D, Plane, Vector3 } from 'three';
 import { boundingBox, vec } from './utils';
 
 const COLLINEAR_THRESHOLD = 0.99;
-const ZERO_THRESHOLD = 0.001;
+const ZERO_THRESHOLD = 0.01;
 
 /**
  * Should really only be called with atoms.
@@ -60,8 +60,10 @@ function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boo
   n1.applyMatrix4(atom1.matrixWorld).sub(atom1.position).normalize();
   n2.applyMatrix4(atom2.matrixWorld).sub(atom2.position).normalize();
   const d = n1.dot(n2);
-  //console.log("atom1 position: "+ atom1.position.toArray());
+ 
+  //console.log("atom1 name: "+ atom1.name + ", atom2 name: "+ atom2.name);
   //console.log("normal d check - side: " + side + ", n1: " + n1.toArray() + ", n2: " + n2.toArray() + ", d: "+d);
+  
   if (d > 0 || (d * -1) < COLLINEAR_THRESHOLD) {
     return false;
   }
@@ -72,9 +74,9 @@ function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boo
   const plane1 = new Plane();
   plane1.setFromNormalAndCoplanarPoint(n1, p1);
   const distance = plane1.distanceToPoint(p2);
-
+ 
   //console.log("plane distance check - side " + side + ", p1: " + p1.toArray() + ", p2: "+ p2.toArray() + ", distance: "+ distance);
-
+  
   return Math.abs(distance) <= ZERO_THRESHOLD;
 }
 

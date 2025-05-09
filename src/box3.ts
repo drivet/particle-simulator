@@ -49,7 +49,7 @@ Box3.prototype.expandByObject = function(object: any, precise = false): Box3 {
 
     // XXX Filter out the lines from the children so they are not considered when
     // calculating bounding boxes
-    const children = object.children.filter(c => c.name !== "line");
+    const children = object.children.filter(c => !c.name.startsWith("line"));
     for ( let i = 0, l = children.length; i < l; i ++ ) {
         this.expandByObject( children[ i ], precise );
     }
