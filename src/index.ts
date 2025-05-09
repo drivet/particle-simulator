@@ -6,28 +6,23 @@ import {
   OrthographicCamera,
   Vector3,
   Euler,
+  MathUtils,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import Stats from "stats.js";
 import { Enclosure } from './enclosure';
-import { avg, boundingBox, cross, euler, randomVector, uVec, vec, isZero } from './utils';
+import { avg, boundingBox, cross, randomVector, isZero, randomEuler } from './utils';
 import { isAtomAtomBond, isAtomMoleculeBond, isMoleculeMoleculeBond } from './bonding';
 import { newAtom, newMolecule, Particle } from './particle';
 
-function updateParticle(p: Particle, glassBox: Enclosure) {
-  if (p.rotationInc) {
-    p.object.rotation.x += p.rotationInc.x;
-    p.object.rotation.y += p.rotationInc.y;
-    p.object.rotation.z += p.rotationInc.z;
-  } else {
-    p.object.rotation.x += 0.01;
-    p.object.rotation.y += 0.002;
-    p.object.rotation.z += 0.004;
-  }
+function updateParticle(p: Particle, glassBox: Enclosure) { 
+  p.object.rotation.x += p.rotationInc.x;
+  p.object.rotation.y += p.rotationInc.y;
+  p.object.rotation.z += p.rotationInc.z;
 
   const moveBy = new Vector3();
   moveBy.copy(p.trajectoryUnit);
-  moveBy.multiplyScalar(0.5);
+  moveBy.multiplyScalar(0.2);
   p.object.position.add(moveBy);
 
   // world matrix is normally updated every frame, but we need an updated
@@ -38,7 +33,7 @@ function updateParticle(p: Particle, glassBox: Enclosure) {
   const thisBox = boundingBox(p.object);
   const plane = glassBox.collision(thisBox);
   if (plane) {
-    p.trajectoryUnit.reflect(plane.normal);
+    p.trajectoryUnit.reflect(plane.normal).normalize();
   }
 }
 
@@ -52,8 +47,8 @@ class ParticleGroup {
   private enclosure = new Enclosure(-100, 100, -100, 100, -100, 100);
 
   constructor(private scene: Scene) {
-    this.spawnDoubleMol(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-    this.spawnDoubleMol(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    //this.spawnDoubleMol(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+    //this.spawnDoubleMol(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
     /*
     this.spawnAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
     this.spawnAtom(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
@@ -70,7 +65,7 @@ class ParticleGroup {
     this.makeAtom(vec(60, 60, 60), uVec(1, 1, 0));
     */
   }
-
+/*
   private spawnAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
     this.add(newAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
   }
@@ -82,6 +77,15 @@ class ParticleGroup {
     mol.object.add(atom1.object);
     mol.object.add(atom2.object);
     this.add(mol);
+  }
+*/ 
+
+  spawnAtom(startPos: Vector3, startRot: Euler, traj: Vector3) {
+    this.add(newAtom(startPos, startRot, traj));
+  }
+  
+  spawnRandomAtom() {
+    this.spawnAtom(this.randomPos(), randomEuler(), this.randomTrajectory());
   }
 
   update() {
@@ -96,6 +100,14 @@ class ParticleGroup {
     while (!done) {
       done = this.maybeBond();
     }
+  }
+
+  private randomTrajectory(): Vector3 {
+    return randomVector(-1, 1).normalize();
+  }
+
+  private randomPos(): Vector3 {
+    return randomVector(-80, 80);
   }
 
   private remove(p: Particle) {
@@ -144,10 +156,10 @@ class ParticleGroup {
     const startPos = avg(atom1.object.position, atom2.object.position);
     let trajectoryUnit = cross(atom1.trajectoryUnit, atom2.trajectoryUnit);
     if (isZero(trajectoryUnit)) {
-      trajectoryUnit = randomVector();
+      trajectoryUnit = this.randomTrajectory();
     }
 
-    const molecule = newMolecule(startPos, null, null, trajectoryUnit, atom1.object, atom2.object);
+    const molecule = newMolecule(startPos, randomEuler(), trajectoryUnit, atom1.object, atom2.object);
     this.add(molecule);
   }
 
@@ -200,7 +212,7 @@ class Main {
     // Init camera.
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new PerspectiveCamera(50, aspect, 1, 1000);
-    this.camera.position.z = 300;
+    this.camera.position.z = 500;
 
     // Init renderer.
     this.renderer = new WebGLRenderer({
@@ -222,8 +234,9 @@ class Main {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.update();
     this.controls.addEventListener("change", () => this.render());
-
     this.particleGroup = new ParticleGroup(this.scene);
+
+    window.addEventListener("click", () => this.particleGroup.spawnRandomAtom());
 
     this.render();
   }
