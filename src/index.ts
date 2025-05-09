@@ -61,8 +61,11 @@ class ParticleGroup {
     this.add(newAtom(startPos, startRot, traj));
   }
 
-  spawnRandomAtom() {
-    this.spawnAtom(this.enclosure.randomPos(), randomEuler(), this.randomTrajectory());
+  spawnRandomAtoms(count?: number) {
+    let actualCount = count === undefined ? 1 : count;
+    for (let i = 0; i < actualCount; i++) {
+      this.spawnAtom(this.enclosure.randomPos(), randomEuler(), this.randomTrajectory());
+    }
   }
 
   update() {
@@ -210,7 +213,17 @@ class Main {
     this.controls.addEventListener("change", () => this.render());
     this.particleGroup = new ParticleGroup(this.scene);
 
-    window.addEventListener("click", () => this.particleGroup.spawnRandomAtom());
+    window.addEventListener("mouseup", (e) => {
+      switch(e.button) {
+        case 1:
+          this.particleGroup.spawnRandomAtoms(10);
+          break;
+        default:
+          this.particleGroup.spawnRandomAtoms();
+          break;
+      }
+     
+    } );
 
     this.render();
   }
