@@ -7,8 +7,8 @@ import { boundingBox, vec } from './utils';
  * 
  */
 
-const COLLINEAR_OPPOSITE_THRESHOLD = 0.93;
-const PLANE_DISTANCE_THRESHOLD = 0.01;
+const COLLINEAR_THRESHOLD = 0.93;
+const PLANE_DISTANCE_THRESHOLD = 0.2;
 
 /**
  * Should really only be called with atoms.
@@ -21,60 +21,51 @@ function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boo
     throw new Error("side must be between 0 and 5");
   }
 
-  let n1: Vector3;
-  let n2: Vector3;
-  let p1: Vector3;
-  let p2: Vector3;
+  let p: Vector3;
   switch (side) {
     case 0:
-      n1 = vec(1, 0, 0);
-      n2 = vec(1, 0, 0);
-      p1 = vec(0.5, 0, 0);
-      p2 = vec(0.5, 0, 0);
+      p = vec(0.5, 0, 0);
       break;
     case 1:
-      n1 = vec(-1, 0, 0);
-      n2 = vec(-1, 0, 0);
-      p1 = vec(-0.5, 0, 0);
-      p2 = vec(-0.5, 0, 0);
+      p = vec(-0.5, 0, 0);
       break;
     case 2:
-      n1 = vec(0, 1, 0);
-      n2 = vec(0, 1, 0);
-      p1 = vec(0, 0.5, 0);
-      p2 = vec(0, 0.5, 0);
+      p = vec(0, 0.5, 0);
       break;
     case 3:
-      n1 = vec(0, -1, 0);
-      n2 = vec(0, -1, 0);
-      p1 = vec(0, -0.5, 0);
-      p2 = vec(0, -0.5, 0);
+      p = vec(0, -0.5, 0);
       break;
     case 4:
-      n1 = vec(0, 0, 1);
-      n2 = vec(0, 0, 1);
-      p1 = vec(0, 0, 0.5);
-      p2 = vec(0, 0, 0.5);
+      p = vec(0, 0, 0.5);
       break;
     default:
-      n1 = vec(0, 0, -1);
-      n2 = vec(0, 0, -1);
-      p1 = vec(0, 0, -0.5);
-      p2 = vec(0, 0, -0.5);
+      p = vec(0, 0, -0.5);
       break;
   }
 
-  n1.applyMatrix4(atom1.matrixWorld).sub(atom1.position);
-  n2.applyMatrix4(atom2.matrixWorld).sub(atom2.position);
-  const d = n1.dot(n2);
+  const worldCubePoint1 = atom1.localToWorld(p.clone());
+  const worldCubePoint2 = atom2.localToWorld(p.clone());
+  //console.log("side: " + side + ", wc1 "+worldCubePoint1.toArray());
+  //console.log("side: " + side + ", wc2 "+worldCubePoint1.toArray());
+  
+  const worldOrigin1 = atom1.localToWorld(vec(0, 0, 0));
+  const worldOrigin2 = atom2.localToWorld(vec(0, 0, 0));
+  //console.log("side: " + side + ", wo1 "+worldOrigin1.toArray());
+  //console.log("side: " + side + ", wo2 "+worldOrigin2.toArray());
+  
+  const worldUnitDir1 = vec().subVectors(worldCubePoint1, worldOrigin1).normalize();
+  const worldUnitDir2 = vec().subVectors(worldCubePoint2, worldOrigin2).normalize();
+   
+  //console.log("side: " + side + ", wn1 "+worldUnitDir1.toArray());
+  //console.log("side: " + side + ", wn2 "+worldUnitDir2.toArray());
 
-  // n1 and n2 are the unit normals for the supplied cube side
-  // in world space for atom1 and atom2, respectively.
+  const d = worldUnitDir1.dot(worldUnitDir2);
+  //console.log("side: " + side + ", d: "+d);
   //
   // They need to be collinear and  pointed in opposite directions for the sides
   // to be touching (though other considitions needs to be met as well), which
   // means that the dot product whould be close to -1.
-  if (d > 0 || (d * -1) < COLLINEAR_OPPOSITE_THRESHOLD) {
+  if (d > 0 || (d * -1) < COLLINEAR_THRESHOLD) {
     return false;
   }
 
@@ -83,15 +74,15 @@ function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boo
   // are touching.
 
   // create the plane representing the side we are looking at for atom (cube) 1
-  p1.applyMatrix4(atom1.matrixWorld);
   const plane1 = new Plane();
-  plane1.setFromNormalAndCoplanarPoint(n1, p1);
+  //console.log("setting plane n: " + worldUnitDir1.toArray() + ", point on plane: "+worldCubePoint1.toArray());
+  plane1.setFromNormalAndCoplanarPoint(worldUnitDir1, worldCubePoint1);
 
   // p2 is a point on the side we're comparing for atom (cube) 2.
   // Ideally, this should be right on the plane we just created for atom 1, but
   // we can loosen this a bit.
-  p2.applyMatrix4(atom2.matrixWorld);
-  const distance = plane1.distanceToPoint(p2);
+  const distance = plane1.distanceToPoint(worldCubePoint2);
+  //console.log("side: "+side + ", distance " + distance + ", from point "+ worldCubePoint2.toArray());
   return Math.abs(distance) <= PLANE_DISTANCE_THRESHOLD;
 }
 
@@ -112,7 +103,8 @@ function isOneSidePlaneAligned(atom1: Object3D, atom2: Object3D): boolean {
  * @returns Return true if two atoms should bond.
  */
 export function isAtomAtomBond(atom1: Object3D, atom2: Object3D): boolean {
-  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) && isOneSidePlaneAligned(atom1, atom2);
+  return boundingBox(atom1).intersectsBox(boundingBox(atom2)) && 
+         isOneSidePlaneAligned(atom1, atom2);
 }
 
 /**
@@ -128,8 +120,7 @@ export function isAtomMoleculeBond(atom: Object3D, molecule: Object3D): boolean 
     // if the bounding boxes don't even touch, then for sure there's no bond
     return false;
   }
-
-  // the bounding boxes touch, but there may or may not be an intersection
+  
   for (const ma of molecule.children) {
     const molAtomBB = boundingBox(ma).applyMatrix4(ma.matrixWorld);
     if (atomBB.intersectsBox(molAtomBB) && isOneSidePlaneAligned(atom, ma)) {

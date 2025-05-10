@@ -59,7 +59,10 @@ class Main {
 
     // create the particle group which runs our whole simualation
     this.particleGroup = new ParticleGroup(this.scene);
-    this.particleGroup.spawnRandomAtoms(100);
+    //this.particleGroup.spawnRandomAtoms(100);
+    //this.particleGroup.spawmAtomMoleculeBondingCheck();
+    //this.particleGroup.spawnAtomBondingCheck();
+    this.particleGroup.spawmMoleculeBondingCheck();
 
     this.setupEvents();
     
@@ -93,10 +96,15 @@ class Main {
         this.particleGroup.spawnRandomAtoms(100);
       } else if (e.key === '2') {
         this.particleGroup.clear();
-        this.particleGroup.spawnAtomCheck();
+        this.particleGroup.spawnAtomBondingCheck();
+      } else if (e.key === '3') {
+        this.particleGroup.clear();
+        this.particleGroup.spawmAtomMoleculeBondingCheck();
+      } else if (e.key === '4') {
+        this.particleGroup.clear();
+        this.particleGroup.spawmMoleculeBondingCheck();
       }
     });
-
   }
 
   private startAnimating() {

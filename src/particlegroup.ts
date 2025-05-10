@@ -1,7 +1,7 @@
 import { Scene, Vector3, Euler } from "three";
 import { isAtomAtomBond, isAtomMoleculeBond, isMoleculeMoleculeBond } from "./bonding";
 import { Enclosure } from "./enclosure";
-import { newAtom, newMolecule, Particle, updateParticle } from "./particle";
+import { newAtom, newLineMolecule, newMolecule, Particle, updateParticle } from "./particle";
 import { randomEuler, randomVector, avg, cross, isZero, euler, uVec, vec } from "./utils";
 
 /**
@@ -47,7 +47,7 @@ export class ParticleGroup {
      * @param count the number of atoms to spawn
      */
     spawnRandomAtoms(count?: number) {
-      let actualCount = count === undefined ? 1 : count;
+      const actualCount = count === undefined ? 1 : count;
       for (let i = 0; i < actualCount; i++) {
         this.spawnAtom(this.enclosure.randomPos(), randomEuler(), this.randomTrajectory());
       }
@@ -59,23 +59,47 @@ export class ParticleGroup {
       this.add(atom);
     }
 
-    /**
-     * Add a few atoms, in a specific configuration to demonstrate bonding.
-     */
-    spawnAtomCheck() {
-      // should bond
-      this.spawnNonRotatingAtom(vec(80, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-      this.spawnNonRotatingAtom(vec(-80, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    spawnNonRotatingMolecule(startPos: Vector3, startRot: Euler, traj: Vector3) {
+      const molecule = newLineMolecule(startPos, startRot, traj, 3);
+      molecule.rotationInc = euler(); // kill rotation
+      this.add(molecule);
 
-      // should bond
-      this.spawnNonRotatingAtom(vec(80, 10, -1), euler(0, 0, 0), uVec(-1, 0, 0));
-      this.spawnNonRotatingAtom(vec(-80, 10, 1), euler(0, Math.PI, 0), uVec(1, 0, 0));
-
-      // these should not bond
-      this.spawnNonRotatingAtom(vec(80, 50, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-      this.spawnNonRotatingAtom(vec(-80, 50, 0), euler(0, 0, 0), uVec(1, 0, 0));
+      // I don't know why, but the start rotation doesn't appear to get set when
+      // we create the molecule, so set it here
+      molecule.object.rotation.x += startRot.x;
+      molecule.object.rotation.y += startRot.y;
+      molecule.object.rotation.z += startRot.z;
     }
-  
+
+    /**
+     * Add a few particles, in a specific configuration to demonstrate bonding.
+     */
+    spawnAtomBondingCheck() {
+      // should bond
+      this.spawnNonRotatingAtom(vec(40, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-40, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+
+      // should bond (off center)
+      this.spawnNonRotatingAtom(vec(40, 10, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-40, 10, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+
+      // should not bond
+      this.spawnNonRotatingAtom(vec(40, 50, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-40, 50, 0), euler(0, 0, 0), uVec(1, 0, 0));
+    }
+
+    spawmAtomMoleculeBondingCheck() {
+      // should bond
+      this.spawnNonRotatingMolecule(vec(40, 0, 0), euler(0, 0, 0), uVec(-1, 0 ,0));
+      this.spawnNonRotatingAtom(vec(-40, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+    }
+    
+    spawmMoleculeBondingCheck() {
+      // should bond
+      this.spawnNonRotatingMolecule(vec(40, 0, 0), euler(0, 0, 0), uVec(-1, 0 ,0));
+      this.spawnNonRotatingMolecule(vec(-40, 0, 0), euler(0, Math.PI, 0), uVec(1, 0 ,0));
+    }
+
     /**
      * Go through one animation fram of the particle group.
      * 

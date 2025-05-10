@@ -8,7 +8,7 @@ import {
   Object3D, Plane,
   Vector3
 } from 'three';
-import { vec } from './utils';
+import { euler, vec } from './utils';
 
 /**
  * Code to deal with particle definition and spawning, and the specifics of how to
@@ -28,7 +28,9 @@ const SIDE_5_Z_MIN_COLOUR = 0x800080; // purple
 const STANDARD_ROTATION_INC = new Euler(0.01, 0.002, 0.004);
 
 // move at this "speed"
-const STANDARD_SPEED = 0.5;
+const STANDARD_SPEED = 0.2;
+
+const CUBE_SIZE = 3;
 
 /**
  * A representation of a Particle - an atom or molecule.  Bundles together a threejs Object3D
@@ -54,8 +56,13 @@ function makeName(prefix: string): string {
 
 function initObject3D(object: Object3D, name: string, startPos: Vector3, startRot: Euler): Object3D {
   object.name = name;
-  object.position.copy(startPos);
-  object.rotation.copy(startRot);
+  object.position.x = startPos.x;
+  object.position.y = startPos.y;
+  object.position.z = startPos.z;
+
+  object.rotation.x += startRot.x;
+  object.rotation.y += startRot.y;
+  object.rotation.z += startRot.z;
   return object;
 }
 
@@ -67,7 +74,9 @@ function addNormalLine(object: Object3D, n1: Vector3, color: number) {
   object.add(n);
 }
 
-function addCubeMesh(object: Object3D) {
+
+function makeAtomSceneObject(startPos: Vector3, startRot: Euler): Object3D {
+  const object = initObject3D(new Group(), makeName('atom_'), startPos, startRot);
   const geometry = new BoxBufferGeometry(1, 1, 1);
   geometry.computeBoundingBox();
   const materials = [
@@ -81,22 +90,7 @@ function addCubeMesh(object: Object3D) {
   const cubeMesh = new Mesh(geometry, materials);
   cubeMesh.name = "mesh";
   object.add(cubeMesh);
-  // stretch in all directions, so this will make the cubes 10 length
-  object.scale.set(3, 3, 3);
-}
 
-/**
- * Make a new atom with a particular position, rotation and trajectory.
- * 
- * @param startPos starting position of the atom
- * @param startRot starting rotational position of the atom
- * @param trajUnit trajectory of the atom
- * @returns the new atom
- */
-export function newAtom(startPos: Vector3, startRot: Euler, trajUnit: Vector3): Particle {
-  const object = initObject3D(new Group(), makeName('atom_'), startPos, startRot);
-
-  addCubeMesh(object);
   addNormalLine(object, vec(1, 0, 0), SIDE_0_X_MAX_COLOUR);
   addNormalLine(object, vec(-1, 0, 0), SIDE_1_X_MIN_COLOUR);
   addNormalLine(object, vec(0, 1, 0), SIDE_2_Y_MAX_COLOUR);
@@ -104,7 +98,22 @@ export function newAtom(startPos: Vector3, startRot: Euler, trajUnit: Vector3): 
   addNormalLine(object, vec(0, 0, 1), SIDE_4_Z_MAX_COLOUR);
   addNormalLine(object, vec(0, 0, -1), SIDE_5_Z_MIN_COLOUR);
 
-  return { isAtom: true, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION_INC }
+  // stretch in all directions
+  object.scale.set(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+  return object;
+}
+
+/**
+ * Make a new atom with a particular position, rotation and trajectory.
+ * 
+ * @param startPos starting position of the atom
+ * @param startRot starting rotational position of the atom
+ * @param trajectoryUnit trajectory of the atom
+ * @returns the new atom
+ */
+export function newAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3): Particle {
+  const object = makeAtomSceneObject(startPos, startRot);
+  return { isAtom: true, object, trajectoryUnit, rotationInc: STANDARD_ROTATION_INC }
 }
 
 /**
@@ -116,13 +125,38 @@ export function newAtom(startPos: Vector3, startRot: Euler, trajUnit: Vector3): 
  * @param atoms the atoms (Object3D instance) to include aspart of the molecule
  * @returns the new molecule
  */
-export function newMolecule(startPos: Vector3, startRot: Euler, trajUnit: Vector3,
+export function newMolecule(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3,
                             ...atoms: Object3D[]): Particle {
   const object = initObject3D(new Group(), makeName('molecule_'), startPos, startRot);
   for (const a of atoms) {
       object.attach(a);
   }
-  return { isAtom: false, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION_INC }
+  return { isAtom: false, object, trajectoryUnit, rotationInc: STANDARD_ROTATION_INC }
+}
+
+/**
+ * Create a new molecule with a specified number of atoms, arranged in a line along the x axis
+ * 
+ * @param startPos 
+ * @param startRot 
+ * @param trajectoryUnit 
+ */
+export function newLineMolecule(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3, count: number) {
+  const atoms: Object3D[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = makeAtomSceneObject(vec(), euler());
+    // rotate every second atom so the side colour matches the previous
+    if (i % 2 === 1) {
+      a.rotation.y = Math.PI;
+    }
+    // move atom down the line, but then add a constant shift back
+    // so we can have it all centered on the orioin.
+    a.position.x = (i * CUBE_SIZE) - ( (CUBE_SIZE * count) / 2);
+    // we're going to use newMolecule later which assumes the atoms are in world coordinates
+    a.position.add(startPos);
+    atoms.push(a);
+  }
+  return newMolecule(startPos, startRot, trajectoryUnit, ...atoms);
 }
 
 /**
