@@ -59,10 +59,10 @@ class Main {
 
     // create the particle group which runs our whole simualation
     this.particleGroup = new ParticleGroup(this.scene);
-    //this.particleGroup.spawnRandomAtoms(100);
+    this.particleGroup.spawnRandomAtoms(100);
     //this.particleGroup.spawmAtomMoleculeBondingCheck();
     //this.particleGroup.spawnAtomBondingCheck();
-    this.particleGroup.spawmMoleculeBondingCheck();
+    //this.particleGroup.spawmMoleculeBondingCheck();
 
     this.setupEvents();
     
