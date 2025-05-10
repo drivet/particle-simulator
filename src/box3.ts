@@ -1,11 +1,16 @@
 import { Box3, Vector3 } from 'three';
 
 /**
+ * WARNING! HACK AHEAD WARNING!
+ * 
+ * An implementation of Box3D that replaces the one from ThreeJS and monkey patches
+ * the expandByObject function so that it excludes children that start with "line".
+ * 
  * I DON'T WANT TO DO THIS, but I have no idea how we can do bounding box
  * calculations while at the same time ignoring the normal lines sticking
- * out of the little cubes, which feels like the appropriate thing to do.
+ * out of the little cubes, which...I think we want to do?
  *
- * This is directly from the Box3 source code, except for the end,
+ * This is function directly from the Box3 source code, except for the end,
  * where I filter out the lines from the children
  */
 const _vector = /*@__PURE__*/ new Vector3();

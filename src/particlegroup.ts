@@ -5,13 +5,19 @@ import { newAtom, newMolecule, Particle, updateParticle } from "./particle";
 import { randomEuler, randomVector, avg, cross, isZero, euler, uVec, vec } from "./utils";
 
 /**
- * Manages all the particles in the scene
+ * Manages all the particles in the scene as a group.  Spawns new atoms and runs the "condensation"
+ * loop which will try and regroup the particles into new molecules. 
+ * 
  */
 export class ParticleGroup {
     private particles = new Map<string, Particle>();
     private enclosure: Enclosure;
-    public pause = false;
-  
+    
+    /**
+     * Create the Particle group and insert the enclosure into the scene
+     * 
+     * @param scene the scene to insert the enclosure into
+     */
     constructor(private scene: Scene) {
       // create the bounding box that we will eventually bounce off of
       this.enclosure = new Enclosure(scene, -100, 100, -100, 100, -100, 100);
@@ -20,10 +26,21 @@ export class ParticleGroup {
       //this.spawnAtom(vec(-80, 0, 5), euler(0, Math.PI, Math.PI/8), uVec(1, 0, 0));
     }
 
+    /**
+     * Spawn a new atom in specific postion, with a specific rotation and trajectory
+     * @param startPos the starting position
+     * @param startRot the starting rotation
+     * @param traj the trajectory
+     */
     spawnAtom(startPos: Vector3, startRot: Euler, traj: Vector3) {
       this.add(newAtom(startPos, startRot, traj));
     }
   
+    /**
+     * Spwan a number of atoms in random locations, with random rotations and trajectories
+     * 
+     * @param count the number of atoms to spawn
+     */
     spawnRandomAtoms(count?: number) {
       let actualCount = count === undefined ? 1 : count;
       for (let i = 0; i < actualCount; i++) {
@@ -31,14 +48,30 @@ export class ParticleGroup {
       }
     }
   
+    /**
+     * Go through one animation fram of the particle group.
+     * 
+     * - move all the particles
+     * - determine if they need to bounce off the walls
+     * - run through the "condense" loops which will determine if any particles
+     *   need to group into bigger units
+     */
     update() {
       for (const p of this.allParticles()) {
-        updateParticle(p, this.pause);
+        updateParticle(p);
         this.enclosure.maybeBounce(p);
       }
       this.condense();
     }
   
+    /**
+     * Run through a "condensation" loop. We see if any particles need to merge together.
+     * 
+     * If none do, we end the loop.
+     * 
+     * If one of them does, the result is one less particle, so we run the loops again to see
+     * if anything else needs to bond
+     */
     condense() {
       let done = false;
       while (!done) {
@@ -85,7 +118,7 @@ export class ParticleGroup {
     }
   
     /**
-     * Make atom1 and atom2 into a new molecule (atom1 and atom2 go away)
+     * Make atom1 and atom2 into a new molecule (atom1 and atom2 go away).
      * atom1 and atom2 are removed from scene and a new Group is created with
      * atom1 and atom2 as children, which is then added to scene
      */

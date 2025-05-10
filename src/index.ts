@@ -10,19 +10,21 @@ import Stats from "stats.js";
 import { ParticleGroup } from "./particlegroup";
 
 class Main {
-  public scene: Scene;
-  public camera: PerspectiveCamera | OrthographicCamera;
-  public renderer: WebGLRenderer;
-  public controls: OrbitControls;
-  public stats: Stats;
-  public particleGroup: ParticleGroup;
+  scene: Scene;
+  camera: PerspectiveCamera | OrthographicCamera;
+  renderer: WebGLRenderer;
+  controls: OrbitControls;
+  stats: Stats;
+  particleGroup: ParticleGroup;
+
+  private animating: boolean;
 
   constructor() {
     this.initViewport();
   }
 
   /** Initialize the viewport */
-  public initViewport() {
+  private initViewport() {
     // Init scene.
     this.scene = new Scene();
     this.scene.background = new Color("#191919");
@@ -40,7 +42,9 @@ class Main {
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.render(this.scene, this.camera);
-    this.renderer.setAnimationLoop(() => this.animate());
+    
+    this.startAnimating();
+    
     document.body.appendChild(this.renderer.domElement);
     window.addEventListener("resize", () => this.onResize());
 
@@ -55,6 +59,13 @@ class Main {
 
     // create the particle group which runs our whole simualation
     this.particleGroup = new ParticleGroup(this.scene);
+   
+    this.setupEvents();
+    
+    this.render();
+  }
+
+  private setupEvents() {
     window.addEventListener("mousedown", (e) => {
       switch(e.button) {
         case 1:
@@ -67,13 +78,26 @@ class Main {
      
     });
 
-    window.addEventListener("mousedown", (e) => {
-      if (e.button === 2) {
-        this.particleGroup.pause = !this.particleGroup.pause;
+    window.addEventListener("keypress", e => {
+      if (e.key === 'p') {
+        if (this.animating) {
+          this.stopAnimating();
+        } else {
+          this.startAnimating();
+        }
       }
     });
 
-    this.render();
+  }
+
+  private startAnimating() {
+    this.animating = true;
+    this.renderer.setAnimationLoop(() => this.animate());
+  }
+
+  private stopAnimating() {
+    this.animating = false;
+    this.renderer.setAnimationLoop(null);
   }
 
   private render() {

@@ -1,12 +1,19 @@
 import { Object3D, Plane, Vector3 } from 'three';
 import { boundingBox, vec } from './utils';
 
+/**
+ * Functions that implement "bonding" checks, i.e. code to detect when two Object3D 
+ * groups representing atoms or molecules should bond.
+ * 
+ */
+
 const COLLINEAR_OPPOSITE_THRESHOLD = 0.93;
 const PLANE_DISTANCE_THRESHOLD = 0.01;
 
 /**
  * Should really only be called with atoms.
- * WARNING: This assumes that the atom box is 1 x 1 x 1 in local space.
+ * WARNING: This assumes that the atom box is 1 x 1 x 1 in local space, but 
+ * I think this is a fairly good assumption.  We scale the result later.
  * 
  */
 function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boolean {
@@ -97,10 +104,24 @@ function isOneSidePlaneAligned(atom1: Object3D, atom2: Object3D): boolean {
   return false;
 }
 
+/**
+ * Check if two atoms should bond.
+ * 
+ * @param atom1 first atome to check
+ * @param atom2 second atom to check
+ * @returns Return true if two atoms should bond.
+ */
 export function isAtomAtomBond(atom1: Object3D, atom2: Object3D): boolean {
   return boundingBox(atom1).intersectsBox(boundingBox(atom2)) && isOneSidePlaneAligned(atom1, atom2);
 }
 
+/**
+ * Check if an atom and a molecule should bond.
+ * 
+ * @param atom atom to check
+ * @param molecule molecule to check
+ * @returns Return true if an atom and a molecule should bond.
+ */
 export function isAtomMoleculeBond(atom: Object3D, molecule: Object3D): boolean {
   const atomBB = boundingBox(atom);
   if (!atomBB.intersectsBox(boundingBox(molecule))) {
@@ -119,6 +140,13 @@ export function isAtomMoleculeBond(atom: Object3D, molecule: Object3D): boolean 
   return false;
 }
 
+/**
+ * Check if two molecules hsould bond.
+ * 
+ * @param molecule1 first molecule to check
+ * @param molecule2 second molecule to check
+ * @returns Return true if two molecules hsould bond.
+ */
 export function isMoleculeMoleculeBond(molecule1: Object3D, molecule2: Object3D): boolean {
   if (!boundingBox(molecule1).intersectsBox(boundingBox(molecule2))) {
     // if the bounding boxes don't even touch, then for sure there's no bond
