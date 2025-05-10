@@ -1,7 +1,7 @@
 {
-    "name": "threejs-with-typescript",
+    "name": "particle-simulator",
     "version": "1.0.0",
-    "description": "Three.js starter template with Typescript.",
+    "description": "A particle simulator with ThreeJS",
     "main": "index.html",
     "scripts": {
         "start": "parcel index.html --open",
@@ -12,6 +12,7 @@
         "three": "0.113.2"
     },
     "devDependencies": {
+        "@types/stats": "^0.16.30",
         "parcel-bundler": "^1.6.1",
         "typescript": "^5.8.3"
     },
