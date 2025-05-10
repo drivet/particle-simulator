@@ -32,7 +32,7 @@ class Main {
     // Init camera.
     const aspect = window.innerWidth / window.innerHeight;
     this.camera = new PerspectiveCamera(50, aspect, 1, 1000);
-    this.camera.position.z = 500;
+    this.camera.position.z = 350;
 
     // Init renderer.
     this.renderer = new WebGLRenderer({
@@ -59,16 +59,17 @@ class Main {
 
     // create the particle group which runs our whole simualation
     this.particleGroup = new ParticleGroup(this.scene);
-   
+    this.particleGroup.spawnRandomAtoms(100);
+
     this.setupEvents();
     
     this.render();
   }
 
   private setupEvents() {
-    window.addEventListener("mousedown", (e) => {
+    window.addEventListener("mouseup", (e) => {
       switch(e.button) {
-        case 1:
+        case 2:
           this.particleGroup.spawnRandomAtoms(10);
           break;
         case 0:
@@ -85,6 +86,14 @@ class Main {
         } else {
           this.startAnimating();
         }
+      } else if (e.key === '0') {
+        this.particleGroup.clear();
+      } else if (e.key === '1') {
+        this.particleGroup.clear()
+        this.particleGroup.spawnRandomAtoms(100);
+      } else if (e.key === '2') {
+        this.particleGroup.clear();
+        this.particleGroup.spawnAtomCheck();
       }
     });
 

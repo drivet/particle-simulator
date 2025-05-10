@@ -14,9 +14,13 @@ The simulation should start in an animated state.
 OrbitControls from the threejs addon packages have been included in the
 simulation, so you can use the mouse to move and zoom the camera around.
 
-## Keys
+## Mouse and Keys
 
-**p**: this will start and stop the animation
+Pressing the left mouse button will spwan a new atom in a random location.
+
+Pressing the right mouse button will spawn 10 new random atoms.
+
+Pressing **p** will start and stop the animation.
 
 Pressing the number keys will switch to different simulations.
 

@@ -1,4 +1,4 @@
-import { Euler, Object3D, Vector3, MathUtils } from 'three';
+import { Euler, Object3D, Vector3, MathUtils, Scene } from 'three';
 import { Box3 } from './box3';
 
 /**
@@ -116,3 +116,4 @@ export function randomEuler(): Euler {
 export function isZero(v: Vector3): boolean {
   return Math.abs(v.x) <= ZERO_THRESHOLD && Math.abs(v.y) <= ZERO_THRESHOLD && Math.abs(v.z) <= ZERO_THRESHOLD;
 }
+

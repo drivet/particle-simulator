@@ -82,7 +82,7 @@ function addCubeMesh(object: Object3D) {
   cubeMesh.name = "mesh";
   object.add(cubeMesh);
   // stretch in all directions, so this will make the cubes 10 length
-  object.scale.set(10, 10, 10);
+  object.scale.set(3, 3, 3);
 }
 
 /**

@@ -21,9 +21,14 @@ export class ParticleGroup {
     constructor(private scene: Scene) {
       // create the bounding box that we will eventually bounce off of
       this.enclosure = new Enclosure(scene, -100, 100, -100, 100, -100, 100);
+    }
 
-      //this.spawnAtom(vec(80, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-      //this.spawnAtom(vec(-80, 0, 5), euler(0, Math.PI, Math.PI/8), uVec(1, 0, 0));
+    /**
+     * Clear the whole scene, so we can start over.
+     */
+    clear() {
+      const particles = this.allParticles();
+      particles.forEach(p => this.remove(p));
     }
 
     /**
@@ -46,6 +51,29 @@ export class ParticleGroup {
       for (let i = 0; i < actualCount; i++) {
         this.spawnAtom(this.enclosure.randomPos(), randomEuler(), this.randomTrajectory());
       }
+    }
+
+    spawnNonRotatingAtom(startPos: Vector3, startRot: Euler, traj: Vector3) {
+      const atom = newAtom(startPos, startRot, traj);
+      atom.rotationInc = euler(); // kill rotation
+      this.add(atom);
+    }
+
+    /**
+     * Add a few atoms, in a specific configuration to demonstrate bonding.
+     */
+    spawnAtomCheck() {
+      // should bond
+      this.spawnNonRotatingAtom(vec(80, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-80, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
+
+      // should bond
+      this.spawnNonRotatingAtom(vec(80, 10, -1), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-80, 10, 1), euler(0, Math.PI, 0), uVec(1, 0, 0));
+
+      // these should not bond
+      this.spawnNonRotatingAtom(vec(80, 50, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      this.spawnNonRotatingAtom(vec(-80, 50, 0), euler(0, 0, 0), uVec(1, 0, 0));
     }
   
     /**
