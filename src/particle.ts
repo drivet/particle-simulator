@@ -20,6 +20,7 @@ const SIDE_4_Z_MAX_COLOUR = 0x0000ff; // blue
 const SIDE_5_Z_MIN_COLOUR = 0x800080; // purple
 
 const STANDARD_ROTATION_INC = new Euler(0.01, 0.002, 0.004);
+//const STANDARD_ROTATION_INC = new Euler(0, 0, 0);
 const STANDARD_SPEED = 0.5;
 
 export interface Particle {
@@ -69,7 +70,7 @@ function addCubeMesh(object: Object3D) {
   cubeMesh.name = "mesh";
   object.add(cubeMesh);
   // stretch in all directions, so this will make the cubes 10 length
-  object.scale.set(5, 5, 5);
+  object.scale.set(10, 10, 10);
 }
 
 export function newAtom(startPos: Vector3, startRot: Euler, trajUnit: Vector3): Particle {
@@ -95,7 +96,11 @@ export function newMolecule(startPos: Vector3, startRot: Euler, trajUnit: Vector
   return { isAtom: false, object, trajectoryUnit: trajUnit, rotationInc: STANDARD_ROTATION_INC }
 }
 
-export function updateParticle(p: Particle) {
+export function updateParticle(p: Particle, pause?: boolean) {
+  if (pause) {
+    return;
+  }
+
   p.object.rotation.x += p.rotationInc.x;
   p.object.rotation.y += p.rotationInc.y;
   p.object.rotation.z += p.rotationInc.z;
@@ -112,7 +117,8 @@ export function updateParticle(p: Particle) {
 }
 
 /**
- * Move the atom atom back a tick along the reverse of its trajectory
+ * Move the atom back a tick along the reverse of its trajectory.
+ * Used during a collision to prevent getting stuck in the wall.
  */
 export function reverseSlightly(p: Particle) {
   p.object.position.add(new Vector3().copy(p.trajectoryUnit).multiplyScalar(STANDARD_SPEED).negate());

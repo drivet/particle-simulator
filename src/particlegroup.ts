@@ -2,7 +2,7 @@ import { Scene, Vector3, Euler } from "three";
 import { isAtomAtomBond, isAtomMoleculeBond, isMoleculeMoleculeBond } from "./bonding";
 import { Enclosure } from "./enclosure";
 import { newAtom, newMolecule, Particle, updateParticle } from "./particle";
-import { randomEuler, randomVector, avg, cross, isZero } from "./utils";
+import { randomEuler, randomVector, avg, cross, isZero, euler, uVec, vec } from "./utils";
 
 /**
  * Manages all the particles in the scene
@@ -10,43 +10,16 @@ import { randomEuler, randomVector, avg, cross, isZero } from "./utils";
 export class ParticleGroup {
     private particles = new Map<string, Particle>();
     private enclosure: Enclosure;
+    public pause = false;
   
     constructor(private scene: Scene) {
       // create the bounding box that we will eventually bounce off of
       this.enclosure = new Enclosure(scene, -100, 100, -100, 100, -100, 100);
-      //this.spawnDoubleMol(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-      //this.spawnDoubleMol(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
-      /*
-      this.spawnAtom(vec(50, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
-      this.spawnAtom(vec(-50, 0, 0), euler(0, Math.PI, 0), uVec(1, 0, 0));
-      this.spawnAtom(vec(-5, 30, 0), euler(Math.PI, 0, 0), uVec(0, -1, 0));
-  */
-      /*
-      this.makeAtom(vec(50, -50, 1), euler(0, 0, 0), uVec(-1, 0, 0));
-      this.makeAtom(vec(-50, -50, -1), euler(0, Math.PI, 0), uVec(1, 0, 0));
-      */
-      /*
-      this.makeAtom(vec(20, 5, 10), uVec(1, 1, 0));
-      this.makeAtom(vec(0, 0, 0), uVec(1, 0, 1));
-      this.makeAtom(vec(40, 40, 40), uVec(0, 1, 1));
-      this.makeAtom(vec(60, 60, 60), uVec(1, 1, 0));
-      */
+
+      //this.spawnAtom(vec(80, 0, 0), euler(0, 0, 0), uVec(-1, 0, 0));
+      //this.spawnAtom(vec(-80, 0, 5), euler(0, Math.PI, Math.PI/8), uVec(1, 0, 0));
     }
-  /*
-    private spawnAtom(startPos: Vector3, startRot: Euler, trajectoryUnit: Vector3) {
-      this.add(newAtom(startPos, startRot, euler(0, 0, 0), trajectoryUnit));
-    }
-  
-    private spawnDoubleMol(startPos: Vector3, startRot: Euler, traj: Vector3) {
-      const atom1 = newAtom(vec(0, 0, 0), new Euler(), new Euler(), new Vector3());
-      const atom2 = newAtom(vec(5, 0, 0), new Euler(), new Euler(), new Vector3());
-      const mol = newMolecule(startPos, startRot, new Euler(), traj);
-      mol.object.add(atom1.object);
-      mol.object.add(atom2.object);
-      this.add(mol);
-    }
-  */
-  
+
     spawnAtom(startPos: Vector3, startRot: Euler, traj: Vector3) {
       this.add(newAtom(startPos, startRot, traj));
     }
@@ -60,7 +33,7 @@ export class ParticleGroup {
   
     update() {
       for (const p of this.allParticles()) {
-        updateParticle(p);
+        updateParticle(p, this.pause);
         this.enclosure.maybeBounce(p);
       }
       this.condense();

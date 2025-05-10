@@ -1,8 +1,8 @@
 import { Object3D, Plane, Vector3 } from 'three';
 import { boundingBox, vec } from './utils';
 
-const COLLINEAR_THRESHOLD = 0.99;
-const ZERO_THRESHOLD = 0.01;
+const COLLINEAR_OPPOSITE_THRESHOLD = 0.93;
+const PLANE_DISTANCE_THRESHOLD = 0.01;
 
 /**
  * Should really only be called with atoms.
@@ -57,27 +57,35 @@ function isSidePlaneAligned(side: number, atom1: Object3D, atom2: Object3D): boo
       break;
   }
 
-  n1.applyMatrix4(atom1.matrixWorld).sub(atom1.position).normalize();
-  n2.applyMatrix4(atom2.matrixWorld).sub(atom2.position).normalize();
+  n1.applyMatrix4(atom1.matrixWorld).sub(atom1.position);
+  n2.applyMatrix4(atom2.matrixWorld).sub(atom2.position);
   const d = n1.dot(n2);
- 
-  //console.log("atom1 name: "+ atom1.name + ", atom2 name: "+ atom2.name);
-  //console.log("normal d check - side: " + side + ", n1: " + n1.toArray() + ", n2: " + n2.toArray() + ", d: "+d);
-  
-  if (d > 0 || (d * -1) < COLLINEAR_THRESHOLD) {
+
+  // n1 and n2 are the unit normals for the supplied cube side
+  // in world space for atom1 and atom2, respectively.
+  //
+  // They need to be collinear and  pointed in opposite directions for the sides
+  // to be touching (though other considitions needs to be met as well), which
+  // means that the dot product whould be close to -1.
+  if (d > 0 || (d * -1) < COLLINEAR_OPPOSITE_THRESHOLD) {
     return false;
   }
 
-  p1.applyMatrix4(atom1.matrixWorld);
-  p2.applyMatrix4(atom2.matrixWorld);
+  // At this point, the normals for the same side are collinear and
+  // pointed in opposite directions, but that doesn't mean the sides 
+  // are touching.
 
+  // create the plane representing the side we are looking at for atom (cube) 1
+  p1.applyMatrix4(atom1.matrixWorld);
   const plane1 = new Plane();
   plane1.setFromNormalAndCoplanarPoint(n1, p1);
+
+  // p2 is a point on the side we're comparing for atom (cube) 2.
+  // Ideally, this should be right on the plane we just created for atom 1, but
+  // we can loosen this a bit.
+  p2.applyMatrix4(atom2.matrixWorld);
   const distance = plane1.distanceToPoint(p2);
- 
-  //console.log("plane distance check - side " + side + ", p1: " + p1.toArray() + ", p2: "+ p2.toArray() + ", distance: "+ distance);
-  
-  return Math.abs(distance) <= ZERO_THRESHOLD;
+  return Math.abs(distance) <= PLANE_DISTANCE_THRESHOLD;
 }
 
 function isOneSidePlaneAligned(atom1: Object3D, atom2: Object3D): boolean {

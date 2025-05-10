@@ -9,15 +9,15 @@ export function boundingBox(object: Object3D) {
   return box;
 }
 
-export function vec(x: number, y: number, z: number): Vector3 {
+export function vec(x?: number, y?: number, z?: number): Vector3 {
   return new Vector3(x, y, z);
 }
 
-export function uVec(x: number, y: number, z: number): Vector3 {
+export function uVec(x?: number, y?: number, z?: number): Vector3 {
   return vec(x, y, z).normalize();
 }
 
-export function euler(x: number, y: number, z: number): Euler {
+export function euler(x?: number, y?: number, z?: number): Euler {
   return new Euler(x, y, z);
 }
 

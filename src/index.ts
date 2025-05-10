@@ -52,19 +52,26 @@ class Main {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.update();
     this.controls.addEventListener("change", () => this.render());
-    this.particleGroup = new ParticleGroup(this.scene);
 
-    window.addEventListener("mouseup", (e) => {
+    // create the particle group which runs our whole simualation
+    this.particleGroup = new ParticleGroup(this.scene);
+    window.addEventListener("mousedown", (e) => {
       switch(e.button) {
         case 1:
           this.particleGroup.spawnRandomAtoms(10);
           break;
-        default:
+        case 0:
           this.particleGroup.spawnRandomAtoms();
           break;
       }
      
-    } );
+    });
+
+    window.addEventListener("mousedown", (e) => {
+      if (e.button === 2) {
+        this.particleGroup.pause = !this.particleGroup.pause;
+      }
+    });
 
     this.render();
   }
