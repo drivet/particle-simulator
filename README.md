@@ -7,6 +7,10 @@ Simple particle simulator in threejs.
 * npm install
 * npm start
 
+## To test
+
+* npm test
+
 The simulation should start in an animated state.
 
 ## Controls
