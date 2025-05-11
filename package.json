@@ -5,14 +5,18 @@
     "main": "index.html",
     "scripts": {
         "start": "parcel index.html --open",
-        "build": "parcel build index.html"
+        "build": "parcel build index.html",
+        "test": "jest"
     },
     "dependencies": {
+        "@types/jest": "^29.5.14",
         "stats.js": "0.17.0",
-        "three": "0.113.2"
+        "three": "0.113.2",
+        "ts-jest": "^29.3.2"
     },
     "devDependencies": {
         "@types/stats": "^0.16.30",
+        "jest": "^29.7.0",
         "parcel-bundler": "^1.6.1",
         "typescript": "^5.8.3"
     },

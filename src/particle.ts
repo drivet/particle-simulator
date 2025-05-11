@@ -30,7 +30,7 @@ const STANDARD_ROTATION_INC = new Euler(0.01, 0.002, 0.004);
 // move at this "speed"
 const STANDARD_SPEED = 0.2;
 
-const CUBE_SIZE = 3;
+const CUBE_SIZE = 5;
 
 /**
  * A representation of a Particle - an atom or molecule.  Bundles together a threejs Object3D

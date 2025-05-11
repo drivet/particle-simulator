@@ -8,7 +8,7 @@ import { boundingBox, vec } from './utils';
  */
 
 const COLLINEAR_THRESHOLD = 0.93;
-const PLANE_DISTANCE_THRESHOLD = 0.4;
+const PLANE_DISTANCE_THRESHOLD = 0.3;
 
 /**
  * Should really only be called with atoms.
