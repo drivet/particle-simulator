@@ -69,21 +69,21 @@ and trajectory.
 
 The simulation rules are:
 
-* if two cubes meet on the same coloured side, with their normals collinear,
+* If two cubes meet on the same coloured side, with their normals collinear,
   then they bond, and become a molecule.
-* the same rules apply to molecule-molecule and atom-molecule interactions
-* if any particle hits the wall, it bounces off.
+* The same rules apply to molecule-molecule and atom-molecule interactions
+* If any particle hits the wall, it bounces off.
 
 To determine if two atoms (cubes) should bond, we check:
 
-* if their bounding boxes intersect
-* for each side, for both cubes:
- * get the normal for the side in world coordinates
- * calculate the dot product. If it's close to -1, then the sides are
-   pointed at each other or away
- * calculate the distance from a point on cube to the plane represented by
-   side in question for the other cube.  If this is close to 0, then these
-   sides should bond.
+* If their bounding boxes intersect
+* For each side, for both cubes:
+  * Get the normal for the side in world coordinates
+  * Calculate the dot product. If it's close to -1, then the sides are
+    pointed at each other or away, and they might bond.
+  * Calculate the distance from a point on cube to the plane represented by
+    side in question for the other cube.  If this is close to 0, then these
+    sides should bond.
 
 To determine if an atom and a molecule should bond, we check to see if their
 bounding boxes intersect and if they do, we check to see if the atom can
